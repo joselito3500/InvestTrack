@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="InvestTrack">
+<title>InvestTrack</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0e1a;--bg2:#111827;--bg3:#1a2235;--bg4:#1e2a40;
+  --border:#2a3550;--border2:#3a4a65;
+  --text:#f0f4ff;--text2:#8899bb;
+  --green:#50dca0;--green2:#1a4a35;
+  --red:#f05570;--red2:#4a1525;
+  --gold:#f0b040;--gold2:#3a2a08;
+  --blue:#4090f0;--blue2:#0a2040;
+  --purple:#9060f0;--purple2:#20103a;
+  --teal:#30c8e0;--teal2:#083040;
+  --accent:#50dca0;
+  --font:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font)}
+#app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);padding:8px 0 max(8px,env(safe-area-inset-bottom));flex-shrink:0;z-index:100}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 4px;border:none;background:none;color:var(--text2);font-family:var(--font);font-size:10px;font-weight:500;cursor:pointer;transition:color .2s;letter-spacing:.3px}
+.nav-btn svg{width:22px;height:22px;stroke-width:1.8}
+.nav-btn.active{color:var(--accent)}
+.nav-btn.active svg{filter:drop-shadow(0 0 6px var(--accent))}
+.screen{display:none;flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.screen.active{display:flex;flex-direction:column}
+.screen-pad{padding:0 16px 100px}
+.top-bar{padding:max(16px,env(safe-area-inset-top)) 16px 12px;background:var(--bg);position:sticky;top:0;z-index:50;border-bottom:1px solid var(--border)}
+.top-bar h1{font-size:22px;font-weight:700;letter-spacing:-0.5px}
+.top-bar h1 span{color:var(--accent)}
+.top-bar p{font-size:12px;color:var(--text2);margin-top:2px}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:16px}
+.card+.card{margin-top:12px}
+.portfolio-hero{background:linear-gradient(135deg,var(--bg3) 0%,var(--bg4) 100%);border:1px solid var(--border2);border-radius:20px;padding:24px 20px;margin:16px 0 12px;text-align:center;position:relative;overflow:hidden}
+.portfolio-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(80,220,160,.08) 0%,transparent 70%)}
+.hero-label{font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px}
+.hero-value{font-size:40px;font-weight:700;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;color:var(--text)}
+.hero-value span{font-size:22px;color:var(--text2);margin-right:4px}
+.hero-change{display:inline-flex;align-items:center;gap:5px;margin-top:10px;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
+.hero-change.pos{background:var(--green2);color:var(--green)}
+.hero-change.neg{background:var(--red2);color:var(--red)}
+.hero-change.neu{background:var(--bg4);color:var(--text2)}
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px 12px}
+.stat-label{font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
+.stat-val{font-size:20px;font-weight:700;letter-spacing:-0.5px;font-variant-numeric:tabular-nums}
+.stat-val.pos{color:var(--green)}
+.stat-val.neg{color:var(--red)}
+.stat-val.gold{color:var(--gold)}
+.stat-val.blue{color:var(--blue)}
+/* SAVINGS CARD */
+.savings-card{background:linear-gradient(135deg,var(--teal2) 0%,var(--bg3) 100%);border:1px solid var(--teal);border-radius:16px;padding:16px;margin-bottom:12px}
+.savings-row{display:flex;align-items:center;gap:10px}
+.savings-icon{width:40px;height:40px;border-radius:12px;background:rgba(48,200,224,.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.savings-info{flex:1}
+.savings-info label{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--teal);display:block;margin-bottom:4px}
+.savings-input-wrap{display:flex;align-items:center;gap:6px}
+.savings-input-wrap span{font-size:22px;font-weight:700;color:var(--teal)}
+.savings-input-wrap input{background:none;border:none;color:var(--text);font-family:var(--mono);font-size:22px;font-weight:700;width:100%;outline:none;padding:0}
+.savings-input-wrap input::placeholder{color:var(--border2)}
+.savings-sub{font-size:11px;color:var(--text2);margin-top:4px}
+/* ASSET LIST */
+.asset-item{background:var(--bg3);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:border-color .15s}
+.asset-item+.asset-item{margin-top:8px}
+.asset-item:active{border-color:var(--border2)}
+.asset-main{display:flex;align-items:center;gap:12px;padding:14px}
+.asset-icon{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.asset-info{flex:1;min-width:0}
+.asset-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-sub{font-size:11px;color:var(--text2);margin-top:2px;display:flex;gap:8px;align-items:center}
+.asset-type-badge{font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;padding:2px 7px;border-radius:6px}
+.asset-right{text-align:right;flex-shrink:0}
+.asset-price{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.asset-pnl{font-size:12px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
+.asset-pnl.pos{color:var(--green)}
+.asset-pnl.neg{color:var(--red)}
+.asset-pnl.neu{color:var(--text2)}
+/* ACTION BTNS on asset */
+.asset-actions{display:flex;border-top:1px solid var(--border);overflow:hidden}
+.asset-act-btn{flex:1;padding:9px 4px;border:none;background:none;font-family:var(--font);font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;letter-spacing:.3px;transition:background .15s}
+.asset-act-btn:not(:last-child){border-right:1px solid var(--border)}
+.asset-act-btn.div{color:var(--gold)}
+.asset-act-btn.div:active{background:var(--gold2)}
+.asset-act-btn.sell{color:var(--red)}
+.asset-act-btn.sell:active{background:var(--red2)}
+.asset-act-btn.edit{color:var(--text2)}
+.asset-act-btn.edit:active{background:var(--bg4)}
+/* CLOSED badge */
+.closed-badge{font-size:9px;font-weight:700;letter-spacing:.8px;padding:2px 8px;border-radius:6px;background:rgba(80,220,160,.12);color:var(--green);text-transform:uppercase}
+.closed-item{opacity:.75}
+/* FAB */
+.fab{position:fixed;bottom:calc(72px + env(safe-area-inset-bottom));right:20px;width:54px;height:54px;border-radius:50%;background:var(--accent);border:none;color:#0a1a10;font-size:26px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(80,220,160,.35);z-index:200;transition:transform .15s,box-shadow .15s}
+.fab:active{transform:scale(.93)}
+/* MODALS */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:none;align-items:flex-end;backdrop-filter:blur(4px)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border-radius:24px 24px 0 0;width:100%;max-height:92vh;overflow-y:auto;padding:20px 20px max(24px,env(safe-area-inset-bottom));border-top:1px solid var(--border2)}
+.modal-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 20px}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:20px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:6px}
+.form-group input,.form-group select,.form-group textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:var(--font);font-size:15px;padding:12px 14px;outline:none;transition:border-color .15s;-webkit-appearance:none}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
+.form-group textarea{resize:none;height:72px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-opt{background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s;font-size:12px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative}
+.type-opt .to-icon{font-size:20px;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.type-opt.selected{border-color:var(--accent);background:rgba(80,220,160,.1);color:var(--accent)}
+.type-opt .del-type{position:absolute;top:4px;right:4px;width:16px;height:16px;border-radius:50%;background:var(--red2);border:none;color:var(--red);font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1}
+.type-opt:hover .del-type{display:flex}
+.btn-primary{width:100%;padding:15px;background:var(--accent);border:none;border-radius:14px;color:#0a1a10;font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;margin-top:8px}
+.btn-primary:active{opacity:.8}
+.btn-secondary{width:100%;padding:13px;background:var(--bg3);border:1px solid var(--border);border-radius:14px;color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+.btn-danger{background:var(--red2);color:var(--red);border:1px solid rgba(240,85,112,.3);width:100%;padding:13px;border-radius:14px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+.detail-hero{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:20px;margin-bottom:12px;text-align:center}
+.detail-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.detail-stat{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 8px;text-align:center}
+.detail-stat .dl{font-size:9px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:4px}
+.detail-stat .dv{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state .emo{font-size:48px;margin-bottom:16px}
+.empty-state h3{font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px}
+.empty-state p{font-size:13px;line-height:1.6}
+.section-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 0 8px}
+.section-hdr h2{font-size:14px;font-weight:700;letter-spacing:-.2px}
+.section-hdr span{font-size:12px;color:var(--text2)}
+.section-hdr button{font-size:11px;font-weight:600;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--accent);padding:5px 10px;cursor:pointer;font-family:var(--font)}
+.search-bar{position:relative;margin-bottom:12px}
+.search-bar input{padding-left:40px}
+.search-bar svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--text2);pointer-events:none}
+.filter-row{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;scrollbar-width:none}
+.filter-row::-webkit-scrollbar{display:none}
+.filter-pill{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.filter-pill.active{background:var(--accent);border-color:var(--accent);color:#0a1a10;font-weight:700}
+.settings-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)}
+.settings-item:last-child{border-bottom:none}
+.settings-label{font-size:14px;font-weight:500}
+.settings-desc{font-size:12px;color:var(--text2);margin-top:2px}
+.donut-wrap{display:flex;align-items:center;gap:16px;margin:4px 0}
+.donut-wrap svg{flex-shrink:0}
+.legend-list{flex:1}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.legend-label{font-size:12px;flex:1;color:var(--text2)}
+.legend-pct{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+/* DIVIDENDS HISTORY */
+.div-entry{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.div-entry:last-child{border-bottom:none}
+.div-date{font-size:12px;color:var(--text2)}
+.div-amount{font-size:14px;font-weight:700;color:var(--gold)}
+/* TYPE MANAGEMENT */
+.type-manage-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border)}
+.type-manage-item:last-child{border-bottom:none}
+.type-manage-emoji{font-size:22px;width:36px;text-align:center}
+.type-manage-name{flex:1;font-weight:600;font-size:14px}
+.type-manage-del{background:var(--red2);border:1px solid rgba(240,85,112,.3);border-radius:8px;color:var(--red);font-family:var(--font);font-size:12px;padding:6px 10px;cursor:pointer}
+::-webkit-scrollbar{width:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- DASHBOARD -->
+  <div class="screen active" id="screen-dashboard">
+    <div class="top-bar">
+      <h1><span>Invest</span>Track</h1>
+      <p id="dash-date"></p>
+    </div>
+    <div class="screen-pad">
+      <div class="portfolio-hero">
+        <div class="hero-label">Valor total de cartera</div>
+        <div class="hero-value"><span id="hero-cur">€</span><span id="hero-num">0,00</span></div>
+        <div class="hero-change neu" id="hero-change">—</div>
+      </div>
+      <!-- SAVINGS WIDGET -->
+      <div class="savings-card">
+        <div class="savings-row">
+          <div class="savings-icon">💰</div>
+          <div class="savings-info">
+            <label>Ahorros totales</label>
+            <div class="savings-input-wrap">
+              <span id="savings-sym">€</span>
+              <input type="number" id="savings-input" placeholder="0" step="0.01" min="0" oninput="saveSavings()" onchange="saveSavings()">
+            </div>
+            <div class="savings-sub" id="savings-sub">Toca para editar</div>
+          </div>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Invertido</div><div class="stat-val" id="stat-invested">€0</div></div>
+        <div class="stat-card"><div class="stat-label">Ganancia / pérdida</div><div class="stat-val" id="stat-pnl">€0</div></div>
+        <div class="stat-card"><div class="stat-label">Posiciones activas</div><div class="stat-val gold" id="stat-positions">0</div></div>
+        <div class="stat-card"><div class="stat-label">Dividendos cobrados</div><div class="stat-val blue" id="stat-divs">€0</div></div>
+      </div>
+      <div class="section-hdr"><h2>Distribución</h2></div>
+      <div class="card">
+        <div class="donut-wrap">
+          <svg width="90" height="90" viewBox="0 0 90 90" id="donut-svg"><circle cx="45" cy="45" r="35" fill="none" stroke="#1e2a40" stroke-width="14"/></svg>
+          <div class="legend-list" id="donut-legend"><span style="font-size:12px;color:var(--text2)">Sin datos</span></div>
+        </div>
+      </div>
+      <div class="section-hdr"><h2>Resumen por tipo</h2></div>
+      <div id="type-summary"></div>
+      <div class="section-hdr"><h2>Inversiones cerradas</h2><span id="closed-count-dash">0</span></div>
+      <div id="closed-summary"></div>
+    </div>
+  </div>
+
+  <!-- CARTERA -->
+  <div class="screen" id="screen-portfolio">
+    <div class="top-bar">
+      <h1>Cartera activa</h1>
+      <p id="portfolio-count">0 activos</p>
+    </div>
+    <div class="screen-pad">
+      <div class="search-bar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-input" placeholder="Buscar activo..." oninput="renderPortfolio()">
+      </div>
+      <div class="filter-row" id="filter-row"></div>
+      <div id="asset-list"></div>
+      <!-- CLOSED SECTION -->
+      <div class="section-hdr" id="closed-section-hdr" style="margin-top:8px">
+        <h2 style="color:var(--text2)">Inversiones cerradas</h2>
+        <span id="closed-toggle-btn" onclick="toggleClosedSection()" style="cursor:pointer;color:var(--accent);font-size:12px;font-weight:600">Ver todas</span>
+      </div>
+      <div id="closed-list" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="screen" id="screen-detail">
+    <div class="top-bar" style="display:flex;align-items:center;gap:12px">
+      <button onclick="showScreen('portfolio')" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:20px;padding:0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div><h1 id="detail-title">Activo</h1><p id="detail-sub" style="font-size:12px;color:var(--text2)"></p></div>
+    </div>
+    <div class="screen-pad"><div id="detail-content"></div></div>
+  </div>
+
+  <!-- STATS -->
+  <div class="screen" id="screen-stats">
+    <div class="top-bar"><h1>Estadísticas</h1><p>Análisis de cartera</p></div>
+    <div class="screen-pad" id="stats-content"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="screen-settings">
+    <div class="top-bar"><h1>Ajustes</h1></div>
+    <div class="screen-pad">
+      <div class="section-hdr"><h2>Tipos de inversión</h2></div>
+      <div class="card">
+        <div id="types-list"></div>
+        <button class="btn-secondary" onclick="openAddTypeModal()" style="margin-top:8px">+ Añadir tipo personalizado</button>
+      </div>
+      <div class="section-hdr"><h2>Divisa</h2></div>
+      <div class="card">
+        <div class="form-group" style="margin:0">
+          <label>Divisa principal</label>
+          <select id="currency-sel" onchange="saveSetting('currency',this.value)">
+            <option value="EUR">Euro (€)</option>
+            <option value="USD">Dólar ($)</option>
+            <option value="GBP">Libra (£)</option>
+          </select>
+        </div>
+      </div>
+      <div class="section-hdr"><h2>Datos</h2></div>
+      <div class="card">
+        <div class="settings-item">
+          <div><div class="settings-label">Exportar datos</div><div class="settings-desc">Descarga tu cartera en JSON</div></div>
+          <button onclick="exportData()" style="background:var(--bg4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:13px;padding:8px 14px;cursor:pointer">Exportar</button>
+        </div>
+        <div class="settings-item">
+          <div><div class="settings-label">Importar datos</div><div class="settings-desc">Restaura desde un JSON</div></div>
+          <button onclick="document.getElementById('import-file').click()" style="background:var(--bg4);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:13px;padding:8px 14px;cursor:pointer">Importar</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(event)">
+        </div>
+        <div class="settings-item">
+          <div><div class="settings-label" style="color:var(--red)">Borrar todo</div><div class="settings-desc">Elimina todos los datos</div></div>
+          <button onclick="confirmReset()" style="background:var(--red2);border:1px solid rgba(240,85,112,.3);border-radius:10px;color:var(--red);font-family:var(--font);font-size:13px;padding:8px 14px;cursor:pointer">Borrar</button>
+        </div>
+      </div>
+      <div class="section-hdr"><h2>Acerca de</h2></div>
+      <div class="card" style="text-align:center;padding:20px">
+        <div style="font-size:32px;margin-bottom:8px">📈</div>
+        <div style="font-weight:700;font-size:16px">InvestTrack</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">v2.0.0 — Gestión local de inversiones</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.5">Todos los datos se guardan localmente<br>en tu dispositivo. Sin servidores externos.</div>
+      </div>
+    </div>
+  </div>
+
+  <nav>
+    <button class="nav-btn active" onclick="showScreen('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button>
+    <button class="nav-btn" onclick="showScreen('portfolio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Cartera
+    </button>
+    <button class="nav-btn" onclick="showScreen('stats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Estadísticas
+    </button>
+    <button class="nav-btn" onclick="showScreen('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Ajustes
+    </button>
+  </nav>
+</div>
+
+<button class="fab" id="fab-btn" onclick="openAddModal()">+</button>
+
+<!-- MAIN ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event,'modal-overlay')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="modal-title">Nueva inversión</h2>
+    <div class="form-group">
+      <label>Tipo de activo</label>
+      <div class="type-grid" id="type-grid-modal"></div>
+    </div>
+    <div class="form-group"><label>Nombre del activo *</label><input type="text" id="f-name" placeholder="Ej: Apple Inc., Bitcoin..."></div>
+    <div class="form-group"><label>Símbolo / Ticker</label><input type="text" id="f-ticker" placeholder="Ej: AAPL, BTC"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Precio de compra *</label><input type="number" id="f-buy" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>Precio actual *</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:none;color:var(--text2)">
+            Activo
+            <span id="f-current-toggle" onclick="toggleCurrentPrice()" style="width:32px;height:18px;border-radius:9px;background:var(--accent);display:inline-flex;align-items:center;cursor:pointer;transition:background .2s;flex-shrink:0;position:relative">
+              <span id="f-current-knob" style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;left:2px;transition:left .2s"></span>
+            </span>
+          </span>
+        </label>
+        <input type="number" id="f-current" placeholder="0.00" step="0.01" min="0">
+        <div id="f-current-disabled-note" style="display:none;font-size:11px;color:var(--text2);margin-top:4px">⏸ Precio congelado — no se calcula P&L</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cantidad *</label><input type="number" id="f-qty" placeholder="0" step="any" min="0"></div>
+      <div class="form-group"><label>Fecha de compra</label><input type="date" id="f-date"></div>
+    </div>
+    <div class="form-group"><label>Retorno esperado (%)</label>
+      <div style="position:relative">
+        <input type="number" id="f-target-return" placeholder="Ej: 15" step="0.1" min="0" style="padding-right:36px">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--text2);pointer-events:none">%</span>
+      </div>
+      <div id="f-target-preview" style="font-size:11px;color:var(--text2);margin-top:4px"></div>
+    </div>
+    <div class="form-group"><label>Comisión pagada</label><input type="number" id="f-fee" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="form-group"><label>Exchange / Broker</label><input type="text" id="f-broker" placeholder="Ej: Degiro, Binance..."></div>
+    <div class="form-group"><label>Notas</label><textarea id="f-notes" placeholder="Observaciones..."></textarea></div>
+    <button class="btn-primary" onclick="saveAsset()">Guardar inversión</button>
+    <button class="btn-danger" id="btn-delete" style="display:none" onclick="deleteAsset()">Eliminar inversión</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<!-- DIVIDEND MODAL -->
+<div class="modal-overlay" id="div-modal-overlay" onclick="closeModal(event,'div-modal-overlay')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Añadir dividendo</h2>
+    <div id="div-modal-asset-info" style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:16px;font-weight:600"></div>
+    <div class="form-group"><label>Importe recibido *</label><input type="number" id="div-amount" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="form-group"><label>Fecha de cobro</label><input type="date" id="div-date"></div>
+    <div class="form-group"><label>Notas</label><input type="text" id="div-notes" placeholder="Ej: Q1 2025, dividendo especial..."></div>
+    <button class="btn-primary" onclick="saveDividend()">Registrar dividendo</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<!-- SELL MODAL -->
+<div class="modal-overlay" id="sell-modal-overlay" onclick="closeModal(event,'sell-modal-overlay')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Registrar venta</h2>
+    <div id="sell-modal-asset-info" style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:16px;font-weight:600"></div>
+    <div class="form-group"><label>Precio de venta *</label><input type="number" id="sell-price" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="form-group"><label>Fecha de venta</label><input type="date" id="sell-date"></div>
+    <div class="form-group"><label>Comisión de venta</label><input type="number" id="sell-fee" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="form-group"><label>Notas</label><input type="text" id="sell-notes" placeholder="Motivo de la venta..."></div>
+    <div id="sell-preview" style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:8px;display:none"></div>
+    <button class="btn-primary" onclick="confirmSell()" style="background:var(--red);color:#fff">Confirmar venta</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<!-- ADD TYPE MODAL -->
+<div class="modal-overlay" id="type-modal-overlay" onclick="closeModal(event,'type-modal-overlay')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Nuevo tipo de inversión</h2>
+    <div class="form-group"><label>Emoji / Icono</label><input type="text" id="type-emoji" placeholder="Ej: 🌍 💎 🚀" maxlength="4"></div>
+    <div class="form-group"><label>Nombre del tipo *</label><input type="text" id="type-name" placeholder="Ej: Materias primas, P2P..."></div>
+    <button class="btn-primary" onclick="saveCustomType()">Añadir tipo</button>
+    <div style="height:8px"></div>
+  </div>
+</div>
+
+<script>
+let investments = JSON.parse(localStorage.getItem('it_data') || '[]');
+let settings = JSON.parse(localStorage.getItem('it_settings') || '{"currency":"EUR","savings":0}');
+let customTypes = JSON.parse(localStorage.getItem('it_types') || '[]');
+let currentFilter = 'all';
+let editingId = null;
+let selectedType = null;
+let dividendTargetId = null;
+let sellTargetId = null;
+let closedVisible = false;
+let currentScreen = 'dashboard';
+
+const BASE_TYPES = [
+  {id:'stocks', label:'Acciones', emoji:'📊'},
+  {id:'crypto', label:'Cripto', emoji:'₿'},
+  {id:'funds', label:'Fondos', emoji:'🏦'},
+  {id:'real_estate', label:'Inmuebles', emoji:'🏠'},
+  {id:'other', label:'Otros', emoji:'💼'}
+];
+
+const PALETTE = ['#4090f0','#f0b040','#9060f0','#50dca0','#f05570','#30c8e0','#f08040','#c060d0','#60d060','#d0a030'];
+
+function getAllTypes() {
+  return [...BASE_TYPES, ...customTypes];
+}
+
+function getTypeInfo(id) {
+  return getAllTypes().find(t => t.id === id) || {id:'other', label:'Otros', emoji:'💼'};
+}
+
+function getTypeColor(id) {
+  const map = {stocks:'#4090f0',crypto:'#f0b040',funds:'#9060f0',real_estate:'#50dca0',other:'#888'};
+  if (map[id]) return map[id];
+  const idx = customTypes.findIndex(t => t.id === id);
+  return PALETTE[(idx + 5) % PALETTE.length];
+}
+
+const CURRENCY_SYMBOLS = {EUR:'€', USD:'$', GBP:'£'};
+function getCurrency() { return CURRENCY_SYMBOLS[settings.currency] || '€'; }
+
+function fmt(n) {
+  if (n === undefined || n === null || isNaN(n)) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1000000) return (n/1000000).toFixed(2) + 'M';
+  if (abs >= 1000) return n.toLocaleString('es-ES', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return n.toFixed(2);
+}
+function fmtPct(n) {
+  if (isNaN(n) || !isFinite(n)) return '—';
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+
+function getAssetValue(inv) {
+  if (inv.currentPriceDisabled) return (parseFloat(inv.buyPrice)||0) * (parseFloat(inv.quantity)||0);
+  return (parseFloat(inv.currentPrice)||0) * (parseFloat(inv.quantity)||0);
+}
+function getAssetCost(inv) { return ((parseFloat(inv.buyPrice)||0) * (parseFloat(inv.quantity)||0)) + (parseFloat(inv.fee)||0); }
+function getAssetPnL(inv) { return getAssetValue(inv) - getAssetCost(inv); }
+function getAssetPnLPct(inv) { const c=getAssetCost(inv); return c ? (getAssetPnL(inv)/c)*100 : 0; }
+function getTotalDividends(inv) { return (inv.dividends||[]).reduce((s,d) => s + (parseFloat(d.amount)||0), 0); }
+function getClosedPnL(inv) {
+  const sellTotal = (parseFloat(inv.sellPrice)||0) * (parseFloat(inv.quantity)||0) - (parseFloat(inv.sellFee)||0);
+  const cost = getAssetCost(inv);
+  return sellTotal - cost + getTotalDividends(inv);
+}
+
+function activeInvestments() { return investments.filter(i => !i.closed); }
+function closedInvestments() { return investments.filter(i => i.closed); }
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  const navIdx = {dashboard:0, portfolio:1, stats:2, settings:3};
+  if (navIdx[name] !== undefined) document.querySelectorAll('.nav-btn')[navIdx[name]].classList.add('active');
+  currentScreen = name;
+  document.getElementById('fab-btn').style.display = (name === 'portfolio' || name === 'dashboard') ? 'flex' : 'none';
+  if (name === 'dashboard') renderDashboard();
+  if (name === 'portfolio') renderPortfolio();
+  if (name === 'stats') renderStats();
+  if (name === 'settings') renderSettings();
+}
+
+function renderDashboard() {
+  const c = getCurrency();
+  document.getElementById('dash-date').textContent = new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('hero-cur').textContent = c;
+  document.getElementById('savings-sym').textContent = c;
+
+  const active = activeInvestments();
+  const closed = closedInvestments();
+  const totalValue = active.reduce((s,i) => s + getAssetValue(i), 0);
+  const totalCost = active.reduce((s,i) => s + getAssetCost(i), 0);
+  const totalPnL = totalValue - totalCost;
+  const totalPnLPct = totalCost ? (totalPnL/totalCost)*100 : 0;
+  const totalDivs = investments.reduce((s,i) => s + getTotalDividends(i), 0);
+
+  document.getElementById('hero-num').textContent = fmt(totalValue);
+  document.getElementById('stat-invested').textContent = c + fmt(totalCost);
+  document.getElementById('stat-positions').textContent = active.length;
+  document.getElementById('stat-divs').textContent = c + fmt(totalDivs);
+
+  const pnlEl = document.getElementById('stat-pnl');
+  pnlEl.textContent = (totalPnL >= 0 ? '+' : '-') + c + fmt(Math.abs(totalPnL));
+  pnlEl.className = 'stat-val ' + (totalPnL > 0 ? 'pos' : totalPnL < 0 ? 'neg' : '');
+
+  const changeEl = document.getElementById('hero-change');
+  changeEl.className = 'hero-change ' + (active.length === 0 ? 'neu' : totalPnL > 0 ? 'pos' : totalPnL < 0 ? 'neg' : 'neu');
+  changeEl.textContent = active.length === 0 ? 'Sin inversiones' : (totalPnL >= 0 ? '+' : '-') + c + fmt(Math.abs(totalPnL)) + ' (' + fmtPct(totalPnLPct) + ')';
+
+  // Savings
+  const savings = parseFloat(settings.savings) || 0;
+  document.getElementById('savings-input').value = savings || '';
+  const totalNet = savings + totalValue;
+  document.getElementById('savings-sub').textContent = savings > 0 ? 'Patrimonio total: ' + c + fmt(totalNet) : 'Toca para editar';
+
+  renderDonut(active, totalValue);
+  renderTypeSummary(c, active);
+
+  // Closed summary on dashboard
+  const closedEl = document.getElementById('closed-summary');
+  document.getElementById('closed-count-dash').textContent = closed.length;
+  if (!closed.length) {
+    closedEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Ninguna inversión cerrada aún</div>';
+  } else {
+    const totalClosedPnL = closed.reduce((s,i) => s + getClosedPnL(i), 0);
+    closedEl.innerHTML = `<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+      <div><div style="font-size:13px;color:var(--text2)">Resultado realizado</div><div style="font-size:11px;color:var(--text2);margin-top:2px">${closed.length} posición${closed.length>1?'es':''} cerrada${closed.length>1?'s':''}</div></div>
+      <div style="font-size:20px;font-weight:700;color:${totalClosedPnL>=0?'var(--green)':'var(--red)'}">${totalClosedPnL>=0?'+':'-'}${c}${fmt(Math.abs(totalClosedPnL))}</div>
+    </div>`;
+  }
+}
+
+function saveSavings() {
+  const val = parseFloat(document.getElementById('savings-input').value) || 0;
+  settings.savings = val;
+  localStorage.setItem('it_settings', JSON.stringify(settings));
+  const c = getCurrency();
+  const totalValue = activeInvestments().reduce((s,i) => s + getAssetValue(i), 0);
+  const totalNet = val + totalValue;
+  document.getElementById('savings-sub').textContent = val > 0 ? 'Patrimonio total: ' + c + fmt(totalNet) : 'Toca para editar';
+}
+
+function renderDonut(active, totalValue) {
+  const typeMap = {};
+  active.forEach(inv => {
+    const t = inv.type || 'other';
+    typeMap[t] = (typeMap[t]||0) + getAssetValue(inv);
+  });
+  const svg = document.getElementById('donut-svg');
+  const legend = document.getElementById('donut-legend');
+  if (!totalValue || !Object.keys(typeMap).length) {
+    svg.innerHTML = '<circle cx="45" cy="45" r="35" fill="none" stroke="#1e2a40" stroke-width="14"/>';
+    legend.innerHTML = '<span style="font-size:12px;color:var(--text2)">Sin datos</span>';
+    return;
+  }
+  const r=35, cx=45, cy=45, circ=2*Math.PI*r;
+  let html='<circle cx="45" cy="45" r="35" fill="none" stroke="#1e2a40" stroke-width="14"/>';
+  let leg=''; let offset=0;
+  Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).forEach(([type,val]) => {
+    const pct=val/totalValue, dashLen=circ*pct, color=getTypeColor(type), ti=getTypeInfo(type);
+    html+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="14" stroke-dasharray="${dashLen.toFixed(2)} ${(circ-dashLen).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset+=dashLen;
+    leg+=`<div class="legend-item"><div class="legend-dot" style="background:${color}"></div><span class="legend-label">${ti.label}</span><span class="legend-pct" style="color:${color}">${(pct*100).toFixed(1)}%</span></div>`;
+  });
+  svg.innerHTML=html; legend.innerHTML=leg;
+}
+
+function renderTypeSummary(c, active) {
+  const typeMap = {};
+  active.forEach(inv => {
+    const t = inv.type||'other';
+    if (!typeMap[t]) typeMap[t]={value:0,cost:0,count:0};
+    typeMap[t].value += getAssetValue(inv);
+    typeMap[t].cost += getAssetCost(inv);
+    typeMap[t].count++;
+  });
+  const el = document.getElementById('type-summary');
+  if (!Object.keys(typeMap).length) {
+    el.innerHTML='<div class="empty-state"><div class="emo">📈</div><h3>Tu cartera está vacía</h3><p>Pulsa el botón + para añadir tu primera inversión</p></div>';
+    return;
+  }
+  el.innerHTML = Object.entries(typeMap).sort((a,b)=>b[1].value-a[1].value).map(([type,data]) => {
+    const pnl=data.value-data.cost, color=getTypeColor(type), ti=getTypeInfo(type);
+    return `<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="width:44px;height:44px;border-radius:12px;background:${color}22;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${ti.emoji}</div>
+      <div style="flex:1"><div style="font-weight:700;font-size:14px">${ti.label}</div><div style="font-size:11px;color:var(--text2);margin-top:2px">${data.count} posición${data.count>1?'es':''}</div></div>
+      <div style="text-align:right"><div style="font-weight:700">${c}${fmt(data.value)}</div><div style="font-size:12px;font-weight:500;color:${pnl>=0?'var(--green)':'var(--red)'}">${pnl>=0?'+':'-'}${c}${fmt(Math.abs(pnl))}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderFilterPills() {
+  const el = document.getElementById('filter-row');
+  const types = getAllTypes();
+  el.innerHTML = `<button class="filter-pill ${currentFilter==='all'?'active':''}" onclick="setFilter('all')">Todos</button>` +
+    types.map(t => `<button class="filter-pill ${currentFilter===t.id?'active':''}" onclick="setFilter('${t.id}')">${t.label}</button>`).join('');
+}
+
+function renderPortfolio() {
+  renderFilterPills();
+  const c = getCurrency();
+  const search = (document.getElementById('search-input')?.value||'').toLowerCase();
+  let list = activeInvestments();
+  if (currentFilter !== 'all') list = list.filter(i => i.type === currentFilter);
+  if (search) list = list.filter(i => i.name.toLowerCase().includes(search)||(i.ticker||'').toLowerCase().includes(search));
+
+  document.getElementById('portfolio-count').textContent = `${activeInvestments().length} activo${activeInvestments().length!==1?'s':''}`;
+
+  const el = document.getElementById('asset-list');
+  if (!list.length) {
+    el.innerHTML = activeInvestments().length===0
+      ? '<div class="empty-state"><div class="emo">💼</div><h3>Cartera vacía</h3><p>Pulsa el + para añadir tu primera inversión</p></div>'
+      : '<div class="empty-state"><div class="emo">🔍</div><h3>Sin resultados</h3><p>No hay activos con ese filtro</p></div>';
+  } else {
+    el.innerHTML = [...list].sort((a,b)=>getAssetValue(b)-getAssetValue(a)).map(inv => buildAssetItem(inv, c)).join('');
+  }
+
+  // Closed list
+  const closed = closedInvestments();
+  const closedEl = document.getElementById('closed-list');
+  document.getElementById('closed-section-hdr').style.display = closed.length ? 'flex' : 'none';
+  document.getElementById('closed-toggle-btn').textContent = closedVisible ? 'Ocultar' : `Ver todas (${closed.length})`;
+  if (closedVisible && closed.length) {
+    closedEl.innerHTML = closed.map(inv => buildClosedItem(inv, c)).join('');
+    closedEl.style.display = 'block';
+  } else {
+    closedEl.style.display = 'none';
+  }
+}
+
+function buildAssetItem(inv, c) {
+  const val=getAssetValue(inv), pnl=getAssetPnL(inv), pnlPct=getAssetPnLPct(inv);
+  const ti=getTypeInfo(inv.type), color=getTypeColor(inv.type);
+  const divTotal = getTotalDividends(inv);
+  const frozen = inv.currentPriceDisabled;
+  const pnlDisplay = frozen
+    ? `<span style="color:var(--text2);font-size:12px">⏸ precio congelado</span>`
+    : `<span class="asset-pnl ${pnl>0?'pos':pnl<0?'neg':'neu'}">${pnl>=0?'+':'-'}${c}${fmt(Math.abs(pnl))} (${fmtPct(pnlPct)})</span>`;
+  const targetBadge = inv.targetReturn && !frozen
+    ? `<span style="font-size:10px;color:${pnlPct>=inv.targetReturn?'var(--green)':'var(--blue)'}">🎯${Math.min(Math.round(pnlPct/inv.targetReturn*100),999)}%</span>` : '';
+  return `<div class="asset-item">
+    <div class="asset-main" onclick="showDetail('${inv.id}')">
+      <div class="asset-icon" style="background:${color}22;color:${color}">${ti.emoji}</div>
+      <div class="asset-info">
+        <div class="asset-name">${inv.name}</div>
+        <div class="asset-sub">
+          <span class="asset-type-badge" style="background:${color}22;color:${color}">${ti.label}</span>
+          ${inv.ticker?`<span style="font-family:var(--mono);font-size:10px">${inv.ticker}</span>`:''}
+          ${divTotal>0?`<span style="color:var(--gold);font-size:10px">💰${c}${fmt(divTotal)}</span>`:''}
+          ${targetBadge}
+        </div>
+      </div>
+      <div class="asset-right">
+        <div class="asset-price">${frozen?'<span style="font-size:11px;color:var(--text2)">⏸</span> ':''} ${c}${fmt(val)}</div>
+        <div>${pnlDisplay}</div>
+      </div>
+    </div>
+    <div class="asset-actions">
+      <button class="asset-act-btn div" onclick="openDividendModal('${inv.id}')">💰 Dividendo</button>
+      <button class="asset-act-btn sell" onclick="openSellModal('${inv.id}')">📤 Vender</button>
+      <button class="asset-act-btn edit" onclick="openEditModal('${inv.id}')">✏️ Editar</button>
+    </div>
+  </div>`;
+}
+
+function buildClosedItem(inv, c) {
+  const closedPnL = getClosedPnL(inv), ti=getTypeInfo(inv.type), color=getTypeColor(inv.type);
+  return `<div class="asset-item closed-item" onclick="showDetail('${inv.id}')">
+    <div class="asset-main">
+      <div class="asset-icon" style="background:${color}22;color:${color};opacity:.6">${ti.emoji}</div>
+      <div class="asset-info">
+        <div class="asset-name" style="display:flex;align-items:center;gap:6px">${inv.name} <span class="closed-badge">Cerrada</span></div>
+        <div class="asset-sub"><span class="asset-type-badge" style="background:${color}22;color:${color}">${ti.label}</span>${inv.sellDate?`<span style="font-size:10px">${new Date(inv.sellDate).toLocaleDateString('es-ES')}</span>`:''}</div>
+      </div>
+      <div class="asset-right">
+        <div class="asset-price">${c}${fmt((parseFloat(inv.sellPrice)||0)*(parseFloat(inv.quantity)||0))}</div>
+        <div class="asset-pnl ${closedPnL>0?'pos':closedPnL<0?'neg':'neu'}">${closedPnL>=0?'+':'-'}${c}${fmt(Math.abs(closedPnL))}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleClosedSection() {
+  closedVisible = !closedVisible;
+  renderPortfolio();
+}
+
+function showDetail(id) {
+  const inv = investments.find(i => i.id === id);
+  if (!inv) return;
+  const c = getCurrency();
+  const ti = getTypeInfo(inv.type), color = getTypeColor(inv.type);
+  document.getElementById('detail-title').textContent = inv.name;
+  document.getElementById('detail-sub').textContent = inv.ticker || ti.label;
+
+  let html = '';
+  if (inv.closed) {
+    const closedPnL = getClosedPnL(inv);
+    const sellTotal = (parseFloat(inv.sellPrice)||0)*(parseFloat(inv.quantity)||0)-(parseFloat(inv.sellFee)||0);
+    html += `<div class="detail-hero">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Inversión cerrada</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:8px">${inv.sellDate?'Vendida el '+new Date(inv.sellDate).toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'}):''}</div>
+      <div style="font-size:36px;font-weight:700;color:${closedPnL>=0?'var(--green)':'var(--red)'}">${closedPnL>=0?'+':'-'}${c}${fmt(Math.abs(closedPnL))}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px">Resultado total (incl. dividendos)</div>
+    </div>
+    <div class="detail-stats">
+      <div class="detail-stat"><div class="dl">Compra</div><div class="dv">${c}${fmt(parseFloat(inv.buyPrice))}</div></div>
+      <div class="detail-stat"><div class="dl">Venta</div><div class="dv">${c}${fmt(parseFloat(inv.sellPrice))}</div></div>
+      <div class="detail-stat"><div class="dl">Cantidad</div><div class="dv">${inv.quantity}</div></div>
+      <div class="detail-stat"><div class="dl">Invertido</div><div class="dv">${c}${fmt(getAssetCost(inv))}</div></div>
+      <div class="detail-stat"><div class="dl">Ingresado</div><div class="dv">${c}${fmt(sellTotal)}</div></div>
+      <div class="detail-stat"><div class="dl">Dividendos</div><div class="dv" style="color:var(--gold)">${c}${fmt(getTotalDividends(inv))}</div></div>
+    </div>`;
+  } else {
+    const val=getAssetValue(inv), pnl=getAssetPnL(inv), pnlPct=getAssetPnLPct(inv);
+    const pnlColor = pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--text2)';
+    const priceDisabled = inv.currentPriceDisabled;
+    html += `<div class="detail-hero">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Valor actual${priceDisabled?' <span style="background:var(--bg4);color:var(--text2);font-size:9px;padding:2px 7px;border-radius:6px;vertical-align:middle">⏸ CONGELADO</span>':''}</div>
+      <div style="font-size:36px;font-weight:700">${c}${fmt(val)}</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 16px;border-radius:20px;background:${priceDisabled?'var(--bg4)':pnl>=0?'var(--green2)':'var(--red2)'};color:${priceDisabled?'var(--text2)':pnlColor};font-weight:700;font-size:14px">${priceDisabled?'⏸ Sin P&L activo':(pnl>=0?'▲':'▼')+' '+c+fmt(Math.abs(pnl))+' · '+fmtPct(pnlPct)}</div>
+    </div>
+    <div class="detail-stats">
+      <div class="detail-stat"><div class="dl">P. compra</div><div class="dv">${c}${fmt(parseFloat(inv.buyPrice))}</div></div>
+      <div class="detail-stat"><div class="dl">P. actual${priceDisabled?' ⏸':''}</div><div class="dv" style="${priceDisabled?'color:var(--text2)':''}">${c}${fmt(parseFloat(inv.currentPrice))}</div></div>
+      <div class="detail-stat"><div class="dl">Cantidad</div><div class="dv">${inv.quantity}</div></div>
+      <div class="detail-stat"><div class="dl">Invertido</div><div class="dv">${c}${fmt(getAssetCost(inv))}</div></div>
+      <div class="detail-stat"><div class="dl">Comisión</div><div class="dv">${c}${fmt(parseFloat(inv.fee)||0)}</div></div>
+      <div class="detail-stat"><div class="dl">Dividendos</div><div class="dv" style="color:var(--gold)">${c}${fmt(getTotalDividends(inv))}</div></div>
+    </div>
+    ${inv.targetReturn ? `<div class="card" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">🎯 Retorno esperado</div>
+        <div style="font-size:14px;font-weight:700;color:var(--accent)">+${inv.targetReturn}%</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Precio objetivo</div>
+        <div style="font-size:14px;font-weight:700">${c}${fmt(parseFloat(inv.buyPrice)*(1+inv.targetReturn/100))}</div>
+        <div style="font-size:11px;color:var(--text2)">Valor: ${c}${fmt(parseFloat(inv.buyPrice)*(1+inv.targetReturn/100)*parseFloat(inv.quantity))}</div>
+      </div>
+      ${!priceDisabled && parseFloat(inv.currentPrice) > 0 ? `<div style="text-align:right;padding-left:8px">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Progreso</div>
+        <div style="font-size:14px;font-weight:700;color:${pnlPct>=inv.targetReturn?'var(--green)':'var(--blue)'}">${Math.min(Math.round(pnlPct/inv.targetReturn*100),999)}%</div>
+        <div style="width:60px;height:5px;border-radius:3px;background:var(--bg4);margin-top:4px"><div style="height:100%;border-radius:3px;background:${pnlPct>=inv.targetReturn?'var(--green)':'var(--blue)'};width:${Math.min(pnlPct/inv.targetReturn*100,100)}%"></div></div>
+      </div>` : ''}
+    </div>` : ''}
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button onclick="openDividendModal('${inv.id}')" style="flex:1;padding:12px;background:var(--gold2);border:1px solid rgba(240,176,64,.3);border-radius:12px;color:var(--gold);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">💰 Añadir dividendo</button>
+      <button onclick="openSellModal('${inv.id}')" style="flex:1;padding:12px;background:var(--red2);border:1px solid rgba(240,85,112,.3);border-radius:12px;color:var(--red);font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer">📤 Vender</button>
+    </div>`;
+  }
+
+  // Dividends history
+  const divs = inv.dividends || [];
+  if (divs.length) {
+    html += `<div class="card" style="margin-bottom:12px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--gold)">💰 Historial de dividendos — ${c}${fmt(getTotalDividends(inv))} total</div>
+      ${divs.map((d,i) => `<div class="div-entry">
+        <div><div class="div-date">${d.date?new Date(d.date).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}):'-'}</div>${d.notes?`<div style="font-size:11px;color:var(--text2)">${d.notes}</div>`:''}</div>
+        <div style="display:flex;align-items:center;gap:8px"><span class="div-amount">${c}${fmt(parseFloat(d.amount))}</span><button onclick="deleteDividend('${inv.id}',${i})" style="background:var(--red2);border:none;border-radius:6px;color:var(--red);font-size:11px;padding:3px 7px;cursor:pointer;font-family:var(--font)">✕</button></div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  if (inv.broker) html+=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:18px">🏦</span><div><div style="font-size:11px;color:var(--text2)">Broker</div><div style="font-weight:600">${inv.broker}</div></div></div>`;
+  if (inv.date) html+=`<div class="card" style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="font-size:18px">📅</span><div><div style="font-size:11px;color:var(--text2)">Fecha de compra</div><div style="font-weight:600">${new Date(inv.date).toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'})}</div></div></div>`;
+  if (inv.notes) html+=`<div class="card" style="margin-bottom:8px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">📝 Notas</div><div style="font-size:14px;line-height:1.6">${inv.notes}</div></div>`;
+  if (!inv.closed) html+=`<button class="btn-secondary" onclick="openEditModal('${inv.id}')">✏️ Editar inversión</button>`;
+  if (inv.closed) html+=`<button onclick="reopenInvestment('${inv.id}')" style="width:100%;padding:13px;background:var(--green2);border:1px solid rgba(80,220,160,.3);border-radius:14px;color:var(--green);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;margin-top:8px">↩ Reabrir inversión</button>`;
+
+  document.getElementById('detail-content').innerHTML = html;
+  showScreen('detail');
+}
+
+function reopenInvestment(id) {
+  const inv = investments.find(i => i.id === id);
+  if (!inv) return;
+  if (!confirm('¿Reabrir esta inversión como activa?')) return;
+  inv.closed = false;
+  delete inv.sellPrice; delete inv.sellDate; delete inv.sellFee; delete inv.sellNotes;
+  saveData();
+  showDetail(id);
+}
+
+function renderStats() {
+  const c = getCurrency();
+  const el = document.getElementById('stats-content');
+  const active = activeInvestments(), closed = closedInvestments();
+  if (!investments.length) {
+    el.innerHTML='<div class="empty-state" style="margin-top:40px"><div class="emo">📊</div><h3>Sin datos</h3><p>Añade inversiones para ver estadísticas</p></div>';
+    return;
+  }
+  const sorted=[...active].sort((a,b)=>getAssetPnLPct(b)-getAssetPnLPct(a));
+  const winners=active.filter(i=>getAssetPnL(i)>0), losers=active.filter(i=>getAssetPnL(i)<0);
+  const totalValue=active.reduce((s,i)=>s+getAssetValue(i),0);
+  const totalDivs=investments.reduce((s,i)=>s+getTotalDividends(i),0);
+  const closedGain=closed.reduce((s,i)=>s+getClosedPnL(i),0);
+  el.innerHTML=`
+    <div class="section-hdr"><h2>Resumen global</h2></div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Ganadoras</div><div class="stat-val pos">${winners.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Perdedoras</div><div class="stat-val neg">${losers.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Dividendos</div><div class="stat-val blue">${c}${fmt(totalDivs)}</div></div>
+      <div class="stat-card"><div class="stat-label">Ganancia realizada</div><div class="stat-val ${closedGain>=0?'pos':'neg'}">${closedGain>=0?'+':'-'}${c}${fmt(Math.abs(closedGain))}</div></div>
+    </div>
+    <div class="section-hdr"><h2>Top rendimiento activo</h2></div>
+    ${sorted.slice(0,5).map((inv,idx)=>{
+      const pnl=getAssetPnL(inv),pnlPct=getAssetPnLPct(inv),color=pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--text2)';
+      return `<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <div style="width:28px;text-align:center;font-size:18px;font-weight:800;color:var(--text2)">${idx+1}</div>
+        <div style="flex:1"><div style="font-weight:700">${inv.name}</div><div style="font-size:11px;color:var(--text2)">${getTypeInfo(inv.type).label}</div></div>
+        <div style="text-align:right"><div style="font-weight:700;color:${color}">${fmtPct(pnlPct)}</div><div style="font-size:12px;color:var(--text2)">${c}${fmt(Math.abs(pnl))}</div></div>
+      </div>`;
+    }).join('')}
+    ${closed.length?`<div class="section-hdr"><h2>Inversiones cerradas</h2></div>
+    ${closed.map(inv=>{
+      const pl=getClosedPnL(inv);
+      return `<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px;opacity:.8">
+        <div style="flex:1"><div style="font-weight:700">${inv.name} <span class="closed-badge">Cerrada</span></div><div style="font-size:11px;color:var(--text2)">${inv.sellDate?new Date(inv.sellDate).toLocaleDateString('es-ES'):'-'}</div></div>
+        <div style="text-align:right;font-weight:700;color:${pl>=0?'var(--green)':'var(--red)'}">${pl>=0?'+':'-'}${c}${fmt(Math.abs(pl))}</div>
+      </div>`;
+    }).join('')}`:''}
+    <div class="section-hdr"><h2>Mayor posición</h2></div>
+    ${[...active].sort((a,b)=>getAssetValue(b)-getAssetValue(a)).slice(0,3).map(inv=>{
+      const pct=totalValue?(getAssetValue(inv)/totalValue)*100:0;
+      return `<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><div style="font-weight:700">${inv.name}</div><div style="font-size:11px;color:var(--text2)">${c}${fmt(getAssetValue(inv))}</div></div><div style="font-size:16px;font-weight:700">${pct.toFixed(1)}%</div></div><div style="height:6px;border-radius:3px;background:var(--bg4)"><div style="height:100%;border-radius:3px;background:var(--accent);width:${Math.min(pct,100)}%"></div></div></div>`;
+    }).join('')}`;
+}
+
+function renderSettings() {
+  document.getElementById('currency-sel').value = settings.currency || 'EUR';
+  const el = document.getElementById('types-list');
+  const allTypes = getAllTypes();
+  el.innerHTML = allTypes.map(t => `<div class="type-manage-item">
+    <div class="type-manage-emoji">${t.emoji}</div>
+    <div class="type-manage-name">${t.label}</div>
+    ${!BASE_TYPES.find(b=>b.id===t.id)?`<button class="type-manage-del" onclick="deleteCustomType('${t.id}')">Eliminar</button>`:'<span style="font-size:11px;color:var(--text2)">Base</span>'}
+  </div>`).join('');
+}
+
+// --- MODALS ---
+function closeModal(e, id) {
+  if (e.target === document.getElementById(id)) document.getElementById(id).classList.remove('open');
+}
+function closeModalById(id) { document.getElementById(id).classList.remove('open'); }
+
+function buildTypeGrid() {
+  const el = document.getElementById('type-grid-modal');
+  el.innerHTML = getAllTypes().map(t =>
+    `<div class="type-opt ${selectedType===t.id?'selected':''}" data-type="${t.id}" onclick="selectType('${t.id}')">
+      <div class="to-icon">${t.emoji}</div>${t.label}
+    </div>`
+  ).join('');
+}
+
+function toggleCurrentPrice() {
+  const active = !document.getElementById('f-current').dataset.disabled;
+  const input = document.getElementById('f-current');
+  const toggle = document.getElementById('f-current-toggle');
+  const knob = document.getElementById('f-current-knob');
+  const note = document.getElementById('f-current-disabled-note');
+  if (active) {
+    input.dataset.disabled = '1'; input.disabled = true; input.style.opacity='.4';
+    toggle.style.background='var(--border2)'; knob.style.left='2px';
+    note.style.display='block';
+  } else {
+    delete input.dataset.disabled; input.disabled = false; input.style.opacity='1';
+    toggle.style.background='var(--accent)'; knob.style.left='16px';
+    note.style.display='none';
+  }
+}
+
+function setCurrentPriceToggle(enabled) {
+  const input = document.getElementById('f-current');
+  const toggle = document.getElementById('f-current-toggle');
+  const knob = document.getElementById('f-current-knob');
+  const note = document.getElementById('f-current-disabled-note');
+  if (enabled) {
+    delete input.dataset.disabled; input.disabled = false; input.style.opacity='1';
+    toggle.style.background='var(--accent)'; knob.style.left='16px';
+    note.style.display='none';
+  } else {
+    input.dataset.disabled='1'; input.disabled=true; input.style.opacity='.4';
+    toggle.style.background='var(--border2)'; knob.style.left='2px';
+    note.style.display='block';
+  }
+}
+
+function updateTargetPreview() {
+  const buyPrice = parseFloat(document.getElementById('f-buy').value)||0;
+  const qty = parseFloat(document.getElementById('f-qty').value)||0;
+  const pct = parseFloat(document.getElementById('f-target-return').value);
+  const prev = document.getElementById('f-target-preview');
+  if (!isNaN(pct) && pct > 0 && buyPrice > 0 && qty > 0) {
+    const c = getCurrency();
+    const targetPrice = buyPrice * (1 + pct/100);
+    const targetValue = targetPrice * qty;
+    const invested = buyPrice * qty;
+    prev.textContent = `→ Precio objetivo: ${c}${targetPrice.toFixed(2)} · Valor objetivo: ${c}${fmt(targetValue)} (+${c}${fmt(targetValue-invested)})`;
+    prev.style.color='var(--accent)';
+  } else {
+    prev.textContent='';
+  }
+}
+
+function openAddModal() {
+  editingId = null; selectedType = null;
+  document.getElementById('modal-title').textContent = 'Nueva inversión';
+  document.getElementById('btn-delete').style.display = 'none';
+  ['f-name','f-ticker','f-broker','f-notes'].forEach(id=>document.getElementById(id).value='');
+  ['f-buy','f-current','f-qty','f-fee','f-target-return'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-target-preview').textContent='';
+  setCurrentPriceToggle(true);
+  buildTypeGrid();
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-target-return').addEventListener('input', updateTargetPreview);
+  setTimeout(()=>document.getElementById('f-name').focus(),300);
+}
+
+function openEditModal(id) {
+  const inv = investments.find(i => i.id === id);
+  if (!inv) return;
+  editingId = id; selectedType = inv.type;
+  document.getElementById('modal-title').textContent = 'Editar inversión';
+  document.getElementById('btn-delete').style.display = 'block';
+  document.getElementById('f-name').value = inv.name||'';
+  document.getElementById('f-ticker').value = inv.ticker||'';
+  document.getElementById('f-buy').value = inv.buyPrice||'';
+  document.getElementById('f-current').value = inv.currentPrice||'';
+  document.getElementById('f-qty').value = inv.quantity||'';
+  document.getElementById('f-date').value = inv.date||'';
+  document.getElementById('f-fee').value = inv.fee||'';
+  document.getElementById('f-broker').value = inv.broker||'';
+  document.getElementById('f-notes').value = inv.notes||'';
+  document.getElementById('f-target-return').value = inv.targetReturn||'';
+  setCurrentPriceToggle(!inv.currentPriceDisabled);
+  document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-target-return').addEventListener('input', updateTargetPreview);
+  updateTargetPreview();
+  buildTypeGrid();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function selectType(t) {
+  selectedType = t;
+  document.querySelectorAll('.type-opt').forEach(el=>el.classList.toggle('selected', el.dataset.type===t));
+}
+
+function saveAsset() {
+  const name = document.getElementById('f-name').value.trim();
+  const buyPrice = parseFloat(document.getElementById('f-buy').value);
+  const currentPriceDisabled = !!document.getElementById('f-current').dataset.disabled;
+  const currentPrice = currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||0) : parseFloat(document.getElementById('f-current').value);
+  const quantity = parseFloat(document.getElementById('f-qty').value);
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
+  if (!currentPriceDisabled && (isNaN(currentPrice)||currentPrice<0)) { alert('Precio actual inválido'); return; }
+  if (isNaN(quantity)||quantity<=0) { alert('Cantidad inválida'); return; }
+  const targetReturn = parseFloat(document.getElementById('f-target-return').value)||null;
+  const inv = {
+    id: editingId||Date.now().toString(),
+    type: selectedType||'other', name,
+    ticker: document.getElementById('f-ticker').value.trim().toUpperCase(),
+    buyPrice, currentPrice: currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||buyPrice) : currentPrice,
+    currentPriceDisabled,
+    targetReturn,
+    quantity,
+    date: document.getElementById('f-date').value,
+    fee: parseFloat(document.getElementById('f-fee').value)||0,
+    broker: document.getElementById('f-broker').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    dividends: editingId ? (investments.find(i=>i.id===editingId)?.dividends||[]) : [],
+    updatedAt: Date.now()
+  };
+  if (editingId) { const idx=investments.findIndex(i=>i.id===editingId); if(idx!==-1) investments[idx]={...investments[idx],...inv}; }
+  else investments.push(inv);
+  saveData();
+  closeModalById('modal-overlay');
+  showScreen('portfolio');
+}
+
+function deleteAsset() {
+  if (!editingId||!confirm('¿Eliminar esta inversión?')) return;
+  investments = investments.filter(i=>i.id!==editingId);
+  saveData();
+  closeModalById('modal-overlay');
+  showScreen('portfolio');
+}
+
+// --- DIVIDENDS ---
+function openDividendModal(id) {
+  dividendTargetId = id;
+  const inv = investments.find(i=>i.id===id);
+  document.getElementById('div-modal-asset-info').textContent = inv.name + (inv.ticker?` (${inv.ticker})`:'');
+  document.getElementById('div-amount').value = '';
+  document.getElementById('div-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('div-notes').value = '';
+  document.getElementById('div-modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('div-amount').focus(),300);
+}
+
+function saveDividend() {
+  const amount = parseFloat(document.getElementById('div-amount').value);
+  if (isNaN(amount)||amount<=0) { alert('Importe inválido'); return; }
+  const inv = investments.find(i=>i.id===dividendTargetId);
+  if (!inv) return;
+  if (!inv.dividends) inv.dividends=[];
+  inv.dividends.push({amount, date:document.getElementById('div-date').value, notes:document.getElementById('div-notes').value.trim()});
+  saveData();
+  closeModalById('div-modal-overlay');
+  if (currentScreen==='detail') showDetail(dividendTargetId);
+  else renderPortfolio();
+}
+
+function deleteDividend(invId, idx) {
+  if (!confirm('¿Eliminar este dividendo?')) return;
+  const inv = investments.find(i=>i.id===invId);
+  if (!inv||!inv.dividends) return;
+  inv.dividends.splice(idx,1);
+  saveData();
+  showDetail(invId);
+}
+
+// --- SELL ---
+function openSellModal(id) {
+  sellTargetId = id;
+  const inv = investments.find(i=>i.id===id);
+  document.getElementById('sell-modal-asset-info').textContent = inv.name + ' — ' + inv.quantity + ' unidades a ' + getCurrency() + fmt(parseFloat(inv.buyPrice));
+  document.getElementById('sell-price').value = inv.currentPrice||'';
+  document.getElementById('sell-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('sell-fee').value = '';
+  document.getElementById('sell-notes').value = '';
+  document.getElementById('sell-preview').style.display='none';
+  document.getElementById('sell-modal-overlay').classList.add('open');
+  document.getElementById('sell-price').addEventListener('input', updateSellPreview);
+  document.getElementById('sell-fee').addEventListener('input', updateSellPreview);
+  setTimeout(()=>document.getElementById('sell-price').focus(),300);
+}
+
+function updateSellPreview() {
+  const inv = investments.find(i=>i.id===sellTargetId);
+  if (!inv) return;
+  const sellPrice = parseFloat(document.getElementById('sell-price').value)||0;
+  const sellFee = parseFloat(document.getElementById('sell-fee').value)||0;
+  const c=getCurrency();
+  const sellTotal = sellPrice*parseFloat(inv.quantity) - sellFee;
+  const cost = getAssetCost(inv);
+  const pnl = sellTotal - cost + getTotalDividends(inv);
+  const preview = document.getElementById('sell-preview');
+  preview.style.display='block';
+  preview.innerHTML=`<div style="font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Vista previa</div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px;color:var(--text2)">Ingreso total</span><span style="font-weight:600">${c}${fmt(sellTotal)}</span></div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:13px;color:var(--text2)">Coste total</span><span style="font-weight:600">${c}${fmt(cost)}</span></div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:8px;margin-top:4px"><span style="font-size:13px;font-weight:700">Resultado neto</span><span style="font-size:18px;font-weight:700;color:${pnl>=0?'var(--green)':'var(--red)'}">${pnl>=0?'+':'-'}${c}${fmt(Math.abs(pnl))}</span></div>`;
+}
+
+function confirmSell() {
+  const sellPrice = parseFloat(document.getElementById('sell-price').value);
+  if (isNaN(sellPrice)||sellPrice<0) { alert('Precio de venta inválido'); return; }
+  const inv = investments.find(i=>i.id===sellTargetId);
+  if (!inv) return;
+  inv.closed = true;
+  inv.sellPrice = sellPrice;
+  inv.sellDate = document.getElementById('sell-date').value;
+  inv.sellFee = parseFloat(document.getElementById('sell-fee').value)||0;
+  inv.sellNotes = document.getElementById('sell-notes').value.trim();
+  saveData();
+  closeModalById('sell-modal-overlay');
+  showScreen('portfolio');
+}
+
+// --- CUSTOM TYPES ---
+function openAddTypeModal() {
+  document.getElementById('type-emoji').value='';
+  document.getElementById('type-name').value='';
+  document.getElementById('type-modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('type-emoji').focus(),300);
+}
+
+function saveCustomType() {
+  const emoji = document.getElementById('type-emoji').value.trim()||'📦';
+  const name = document.getElementById('type-name').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const id = 'custom_' + Date.now();
+  customTypes.push({id, label:name, emoji});
+  localStorage.setItem('it_types', JSON.stringify(customTypes));
+  closeModalById('type-modal-overlay');
+  renderSettings();
+}
+
+function deleteCustomType(id) {
+  if (investments.some(i=>i.type===id)) {
+    if (!confirm('Hay inversiones con este tipo. Se cambiarán a "Otros". ¿Continuar?')) return;
+    investments.forEach(i=>{ if(i.type===id) i.type='other'; });
+    saveData();
+  }
+  customTypes = customTypes.filter(t=>t.id!==id);
+  localStorage.setItem('it_types', JSON.stringify(customTypes));
+  renderSettings();
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  renderPortfolio();
+}
+
+function saveData() { localStorage.setItem('it_data', JSON.stringify(investments)); }
+
+function saveSetting(key, val) {
+  settings[key]=val;
+  localStorage.setItem('it_settings', JSON.stringify(settings));
+  renderDashboard();
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify({investments,settings,customTypes,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='investtrack-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();
+}
+
+function importData(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try {
+      const data=JSON.parse(ev.target.result);
+      if(data.investments){investments=data.investments; if(data.settings)settings=data.settings; if(data.customTypes)customTypes=data.customTypes; saveData(); localStorage.setItem('it_settings',JSON.stringify(settings)); localStorage.setItem('it_types',JSON.stringify(customTypes)); alert('Importado: '+investments.length+' inversiones'); renderDashboard(); renderSettings();}
+    } catch{alert('Error al leer el archivo');}
+  };
+  reader.readAsText(file);
+}
+
+function confirmReset() {
+  if(!confirm('¿Borrar todos los datos? Esta acción no se puede deshacer.')) return;
+  investments=[]; customTypes=[];
+  settings={currency:settings.currency||'EUR',savings:0};
+  saveData(); localStorage.setItem('it_types','[]'); localStorage.setItem('it_settings',JSON.stringify(settings));
+  renderDashboard(); renderPortfolio();
+}
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+renderDashboard();
+showScreen('dashboard');
+</script>
+</body>
+</html>
