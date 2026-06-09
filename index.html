@@ -1162,7 +1162,14 @@ function confirmReset() {
   renderDashboard(); renderPortfolio();
 }
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    // Registramos el sw apuntando a la subcarpeta
+    navigator.serviceWorker.register('/InvestTrack/sw.js', { scope: '/InvestTrack/' })
+      .then(reg => console.log('Service Worker registrado con éxito', reg))
+      .catch(err => console.error('Error al registrar el Service Worker', err));
+  });
+}
 renderDashboard();
 showScreen('dashboard');
 </script>
