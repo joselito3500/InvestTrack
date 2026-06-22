@@ -337,8 +337,27 @@ nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);paddin
     </div>
     <div class="form-group"><label>Nombre del activo *</label><input type="text" id="f-name" placeholder="Ej: Apple Inc., Bitcoin..."></div>
     <div class="form-group"><label>Símbolo / Ticker</label><input type="text" id="f-ticker" placeholder="Ej: AAPL, BTC"></div>
-    <div class="form-row">
+    <div class="form-group">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>Modo de entrada</span>
+      </label>
+      <div style="display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:3px">
+        <button type="button" id="mode-btn-price" onclick="setInputMode('price')" style="flex:1;padding:9px 8px;border:none;border-radius:9px;background:var(--accent);color:#0a1a10;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">Precio + Cantidad</button>
+        <button type="button" id="mode-btn-invested" onclick="setInputMode('invested')" style="flex:1;padding:9px 8px;border:none;border-radius:9px;background:transparent;color:var(--text2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s">Dinero invertido</button>
+      </div>
+    </div>
+    <div class="form-row" id="row-price-qty">
       <div class="form-group"><label>Precio de compra *</label><input type="number" id="f-buy" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Cantidad *</label><input type="number" id="f-qty" placeholder="0" step="any" min="0"></div>
+    </div>
+    <div class="form-group" id="row-invested" style="display:none">
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0"><label>Precio de compra (unidad) *</label><input type="number" id="f-buy-2" placeholder="0.00" step="0.01" min="0"></div>
+        <div class="form-group" style="margin-bottom:0"><label>Dinero invertido (total) *</label><input type="number" id="f-invested" placeholder="0.00" step="0.01" min="0"></div>
+      </div>
+      <div id="invested-hint" style="font-size:11px;color:var(--text2);margin-top:6px">La cantidad de unidades se calculará automáticamente</div>
+    </div>
+    <div class="form-row">
       <div class="form-group">
         <label style="display:flex;align-items:center;justify-content:space-between">
           <span>Precio actual *</span>
@@ -352,9 +371,6 @@ nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);paddin
         <input type="number" id="f-current" placeholder="0.00" step="0.01" min="0">
         <div id="f-current-disabled-note" style="display:none;font-size:11px;color:var(--text2);margin-top:4px">⏸ Precio congelado — no se calcula P&L</div>
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Cantidad *</label><input type="number" id="f-qty" placeholder="0" step="any" min="0"></div>
       <div class="form-group"><label>Fecha de compra</label><input type="date" id="f-date"></div>
     </div>
     <div class="form-group"><label>Retorno esperado (%)</label>
@@ -871,6 +887,48 @@ function buildTypeGrid() {
   ).join('');
 }
 
+let inputMode = 'price';
+
+function setInputMode(mode) {
+  inputMode = mode;
+  const btnPrice = document.getElementById('mode-btn-price');
+  const btnInvested = document.getElementById('mode-btn-invested');
+  const rowPriceQty = document.getElementById('row-price-qty');
+  const rowInvested = document.getElementById('row-invested');
+  if (mode === 'price') {
+    btnPrice.style.background = 'var(--accent)'; btnPrice.style.color = '#0a1a10';
+    btnInvested.style.background = 'transparent'; btnInvested.style.color = 'var(--text2)';
+    rowPriceQty.style.display = 'grid';
+    rowInvested.style.display = 'none';
+    // sync value from buy-2 to buy
+    const buy2 = document.getElementById('f-buy-2').value;
+    if (buy2) document.getElementById('f-buy').value = buy2;
+  } else {
+    btnInvested.style.background = 'var(--accent)'; btnInvested.style.color = '#0a1a10';
+    btnPrice.style.background = 'transparent'; btnPrice.style.color = 'var(--text2)';
+    rowPriceQty.style.display = 'none';
+    rowInvested.style.display = 'block';
+    const buy = document.getElementById('f-buy').value;
+    if (buy) document.getElementById('f-buy-2').value = buy;
+    updateInvestedHint();
+  }
+  updateTargetPreview();
+}
+
+function updateInvestedHint() {
+  const buy = parseFloat(document.getElementById('f-buy-2').value) || 0;
+  const invested = parseFloat(document.getElementById('f-invested').value) || 0;
+  const hint = document.getElementById('invested-hint');
+  if (buy > 0 && invested > 0) {
+    const qty = invested / buy;
+    hint.textContent = `→ Cantidad calculada: ${qty.toFixed(6).replace(/\.?0+$/, '')} unidades`;
+    hint.style.color = 'var(--accent)';
+  } else {
+    hint.textContent = 'La cantidad de unidades se calculará automáticamente';
+    hint.style.color = 'var(--text2)';
+  }
+}
+
 function toggleCurrentPrice() {
   const active = !document.getElementById('f-current').dataset.disabled;
   const input = document.getElementById('f-current');
@@ -905,8 +963,15 @@ function setCurrentPriceToggle(enabled) {
 }
 
 function updateTargetPreview() {
-  const buyPrice = parseFloat(document.getElementById('f-buy').value)||0;
-  const qty = parseFloat(document.getElementById('f-qty').value)||0;
+  let buyPrice, qty;
+  if (inputMode === 'invested') {
+    buyPrice = parseFloat(document.getElementById('f-buy-2').value)||0;
+    const invested = parseFloat(document.getElementById('f-invested').value)||0;
+    qty = buyPrice > 0 ? invested / buyPrice : 0;
+  } else {
+    buyPrice = parseFloat(document.getElementById('f-buy').value)||0;
+    qty = parseFloat(document.getElementById('f-qty').value)||0;
+  }
   const pct = parseFloat(document.getElementById('f-target-return').value);
   const prev = document.getElementById('f-target-preview');
   if (!isNaN(pct) && pct > 0 && buyPrice > 0 && qty > 0) {
@@ -926,14 +991,17 @@ function openAddModal() {
   document.getElementById('modal-title').textContent = 'Nueva inversión';
   document.getElementById('btn-delete').style.display = 'none';
   ['f-name','f-ticker','f-broker','f-notes'].forEach(id=>document.getElementById(id).value='');
-  ['f-buy','f-current','f-qty','f-fee','f-target-return'].forEach(id=>document.getElementById(id).value='');
+  ['f-buy','f-buy-2','f-current','f-qty','f-invested','f-fee','f-target-return'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('f-target-preview').textContent='';
   setCurrentPriceToggle(true);
+  setInputMode('price');
   buildTypeGrid();
   document.getElementById('modal-overlay').classList.add('open');
   document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
   document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-buy-2').addEventListener('input', ()=>{updateInvestedHint();updateTargetPreview();});
+  document.getElementById('f-invested').addEventListener('input', ()=>{updateInvestedHint();updateTargetPreview();});
   document.getElementById('f-target-return').addEventListener('input', updateTargetPreview);
   setTimeout(()=>document.getElementById('f-name').focus(),300);
 }
@@ -947,16 +1015,21 @@ function openEditModal(id) {
   document.getElementById('f-name').value = inv.name||'';
   document.getElementById('f-ticker').value = inv.ticker||'';
   document.getElementById('f-buy').value = inv.buyPrice||'';
+  document.getElementById('f-buy-2').value = inv.buyPrice||'';
   document.getElementById('f-current').value = inv.currentPrice||'';
   document.getElementById('f-qty').value = inv.quantity||'';
+  document.getElementById('f-invested').value = inv.buyPrice && inv.quantity ? (parseFloat(inv.buyPrice)*parseFloat(inv.quantity)).toFixed(2) : '';
   document.getElementById('f-date').value = inv.date||'';
   document.getElementById('f-fee').value = inv.fee||'';
   document.getElementById('f-broker').value = inv.broker||'';
   document.getElementById('f-notes').value = inv.notes||'';
   document.getElementById('f-target-return').value = inv.targetReturn||'';
   setCurrentPriceToggle(!inv.currentPriceDisabled);
+  setInputMode('price');
   document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
   document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
+  document.getElementById('f-buy-2').addEventListener('input', ()=>{updateInvestedHint();updateTargetPreview();});
+  document.getElementById('f-invested').addEventListener('input', ()=>{updateInvestedHint();updateTargetPreview();});
   document.getElementById('f-target-return').addEventListener('input', updateTargetPreview);
   updateTargetPreview();
   buildTypeGrid();
@@ -970,10 +1043,19 @@ function selectType(t) {
 
 function saveAsset() {
   const name = document.getElementById('f-name').value.trim();
-  const buyPrice = parseFloat(document.getElementById('f-buy').value);
+  let buyPrice, quantity;
+  if (inputMode === 'invested') {
+    buyPrice = parseFloat(document.getElementById('f-buy-2').value);
+    const invested = parseFloat(document.getElementById('f-invested').value);
+    if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
+    if (isNaN(invested)||invested<=0) { alert('Dinero invertido inválido'); return; }
+    quantity = invested / buyPrice;
+  } else {
+    buyPrice = parseFloat(document.getElementById('f-buy').value);
+    quantity = parseFloat(document.getElementById('f-qty').value);
+  }
   const currentPriceDisabled = !!document.getElementById('f-current').dataset.disabled;
   const currentPrice = currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||0) : parseFloat(document.getElementById('f-current').value);
-  const quantity = parseFloat(document.getElementById('f-qty').value);
   if (!name) { alert('El nombre es obligatorio'); return; }
   if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
   if (!currentPriceDisabled && (isNaN(currentPrice)||currentPrice<0)) { alert('Precio actual inválido'); return; }
@@ -1162,14 +1244,7 @@ function confirmReset() {
   renderDashboard(); renderPortfolio();
 }
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    // Registramos el sw apuntando a la subcarpeta
-    navigator.serviceWorker.register('/InvestTrack/sw.js', { scope: '/InvestTrack/' })
-      .then(reg => console.log('Service Worker registrado con éxito', reg))
-      .catch(err => console.error('Error al registrar el Service Worker', err));
-  });
-}
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 renderDashboard();
 showScreen('dashboard');
 </script>
