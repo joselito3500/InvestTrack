@@ -523,15 +523,38 @@ function setSyncStatus(state, text, sub) {
   document.getElementById('sync-connected-block').style.display = state==='on' ? 'block' : 'none';
 }
 
-async function connectFirebase(useExistingCode) {
-  const raw = document.getElementById('firebase-config-input').value.trim();
-  let config;
+function parseFirebaseConfig(rawInput) {
+  if (!rawInput) return null;
+  // 1. Strip // line comments and /* */ block comments
+  let cleaned = rawInput
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  // 2. Extract just the {...} object — handles "const firebaseConfig = {...};" or raw {...}
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return null;
+  let objText = cleaned.slice(start, end + 1);
+  // 3. Try strict JSON first (in case keys are already quoted)
+  try { return JSON.parse(objText); } catch {}
+  // 4. Try quoting unquoted keys, then JSON.parse
   try {
-    config = JSON.parse(raw.replace(/(\w+):/g, '"$1":').replace(/'/g,'"'));
-  } catch {
-    try { config = eval('(' + raw + ')'); } catch { alert('No he podido leer la configuración. Asegúrate de pegar el objeto firebaseConfig completo.'); return; }
-  }
-  if (!config || !config.apiKey || !config.projectId) { alert('Configuración incompleta. Faltan campos como apiKey o projectId.'); return; }
+    const quoted = objText.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)\s*:/g, '$1"$2":');
+    return JSON.parse(quoted);
+  } catch {}
+  // 5. Last resort: safe object-literal eval (no surrounding declarations, so syntactically valid)
+  try {
+    // eslint-disable-next-line no-eval
+    const obj = (0, eval)('(' + objText + ')');
+    if (obj && typeof obj === 'object') return obj;
+  } catch {}
+  return null;
+}
+
+async function connectFirebase(useExistingCode) {
+  const rawInput = document.getElementById('firebase-config-input').value.trim();
+  const config = parseFirebaseConfig(rawInput);
+  if (!config) { alert('No he podido leer la configuración. Asegúrate de pegar el objeto firebaseConfig completo (puedes pegar el bloque entero, incluyendo "const firebaseConfig = ..." y comentarios — se detecta automáticamente).'); return; }
+  if (!config.apiKey || !config.projectId) { alert('Configuración incompleta. Faltan campos como apiKey o projectId.'); return; }
 
   setSyncStatus('connecting', 'Conectando...', 'Cargando SDK de Firebase');
   let fb;
@@ -1521,7 +1544,6 @@ function confirmReset() {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Registramos el sw apuntando a la subcarpeta
     navigator.serviceWorker.register('/InvestTrack/sw.js', { scope: '/InvestTrack/' })
       .then(reg => console.log('Service Worker registrado con éxito', reg))
       .catch(err => console.error('Error al registrar el Service Worker', err));
