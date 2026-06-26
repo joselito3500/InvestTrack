@@ -399,7 +399,18 @@ service cloud.firestore {
     </div>
     <div class="form-group" id="row-invested" style="display:none">
       <div class="form-row">
-        <div class="form-group" style="margin-bottom:0"><label>Precio de compra (unidad) *</label><input type="number" id="f-buy-2" placeholder="0.00" step="0.01" min="0"></div>
+        <div class="form-group" style="margin-bottom:0">
+          <label style="display:flex;align-items:center;justify-content:space-between">
+            <span>Precio de compra (unidad) *</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:none;color:var(--text2)">
+              Activo
+              <span id="f-buy2-toggle" onclick="toggleBuyPrice2()" style="width:32px;height:18px;border-radius:9px;background:var(--accent);display:inline-flex;align-items:center;cursor:pointer;transition:background .2s;flex-shrink:0;position:relative">
+                <span id="f-buy2-knob" style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;left:2px;transition:left .2s"></span>
+              </span>
+            </span>
+          </label>
+          <input type="number" id="f-buy-2" placeholder="0.00" step="0.01" min="0">
+        </div>
         <div class="form-group" style="margin-bottom:0"><label>Dinero invertido (total) *</label><input type="number" id="f-invested" placeholder="0.00" step="0.01" min="0"></div>
       </div>
       <div id="invested-hint" style="font-size:11px;color:var(--text2);margin-top:6px">La cantidad de unidades se calculará automáticamente</div>
@@ -959,7 +970,7 @@ function buildAssetItem(inv, c) {
   const divTotal = getTotalDividends(inv);
   const frozen = inv.currentPriceDisabled;
   const pnlDisplay = frozen
-    ? `<span style="color:var(--text2);font-size:12px">⏸ precio congelado</span>`
+    ? `<span style="color:var(--text2);font-size:12px">sin seguimiento</span>`
     : `<span class="asset-pnl ${pnl>0?'pos':pnl<0?'neg':'neu'}">${pnl>=0?'+':'-'}${c}${fmt(Math.abs(pnl))} (${fmtPct(pnlPct)})</span>`;
   const targetBadge = inv.targetReturn && !frozen
     ? `<span style="font-size:10px;color:${pnlPct>=inv.targetReturn?'var(--green)':'var(--blue)'}">🎯${Math.min(Math.round(pnlPct/inv.targetReturn*100),999)}%</span>` : '';
@@ -1043,11 +1054,11 @@ function showDetail(id) {
     html += `<div class="detail-hero">
       <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Valor actual${priceDisabled?' <span style="background:var(--bg4);color:var(--text2);font-size:9px;padding:2px 7px;border-radius:6px;vertical-align:middle">⏸ CONGELADO</span>':''}</div>
       <div style="font-size:36px;font-weight:700">${c}${fmt(val)}</div>
-      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 16px;border-radius:20px;background:${priceDisabled?'var(--bg4)':pnl>=0?'var(--green2)':'var(--red2)'};color:${priceDisabled?'var(--text2)':pnlColor};font-weight:700;font-size:14px">${priceDisabled?'⏸ Sin P&L activo':(pnl>=0?'▲':'▼')+' '+c+fmt(Math.abs(pnl))+' · '+fmtPct(pnlPct)}</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 16px;border-radius:20px;background:${priceDisabled?'var(--bg4)':pnl>=0?'var(--green2)':'var(--red2)'};color:${priceDisabled?'var(--text2)':pnlColor};font-weight:700;font-size:14px">${priceDisabled?'Sin seguimiento de P&L':(pnl>=0?'▲':'▼')+' '+c+fmt(Math.abs(pnl))+' · '+fmtPct(pnlPct)}</div>
     </div>
     <div class="detail-stats">
       <div class="detail-stat"><div class="dl">P. compra</div><div class="dv">${c}${fmt(parseFloat(inv.buyPrice))}</div></div>
-      <div class="detail-stat"><div class="dl">P. actual${priceDisabled?' ⏸':''}</div><div class="dv" style="${priceDisabled?'color:var(--text2)':''}">${c}${fmt(parseFloat(inv.currentPrice))}</div></div>
+      <div class="detail-stat"><div class="dl">P. actual</div><div class="dv" style="${priceDisabled?'color:var(--text2)':''}">${c}${fmt(parseFloat(inv.currentPrice))}</div></div>
       <div class="detail-stat"><div class="dl">Cantidad</div><div class="dv">${inv.quantity}</div></div>
       <div class="detail-stat"><div class="dl">Invertido</div><div class="dv">${c}${fmt(getAssetCost(inv))}</div></div>
       <div class="detail-stat"><div class="dl">Comisión</div><div class="dv">${c}${fmt(parseFloat(inv.fee)||0)}</div></div>
@@ -1207,10 +1218,14 @@ function setInputMode(mode) {
 }
 
 function updateInvestedHint() {
+  const buyDisabled = !!document.getElementById('f-buy-2').dataset.disabled;
   const buy = parseFloat(document.getElementById('f-buy-2').value) || 0;
   const invested = parseFloat(document.getElementById('f-invested').value) || 0;
   const hint = document.getElementById('invested-hint');
-  if (buy > 0 && invested > 0) {
+  if (buyDisabled && invested > 0) {
+    hint.textContent = `→ Sin precio unitario: se registrará como 1 unidad de ${getCurrency()}${fmt(invested)}`;
+    hint.style.color = 'var(--accent)';
+  } else if (buy > 0 && invested > 0) {
     const qty = invested / buy;
     hint.textContent = `→ Cantidad calculada: ${qty.toFixed(6).replace(/\.?0+$/, '')} unidades`;
     hint.style.color = 'var(--accent)';
@@ -1253,6 +1268,26 @@ function setCurrentPriceToggle(enabled) {
   }
 }
 
+function toggleBuyPrice2() {
+  const active = !document.getElementById('f-buy-2').dataset.disabled;
+  setBuyPrice2Toggle(!active);
+}
+
+function setBuyPrice2Toggle(enabled) {
+  const input = document.getElementById('f-buy-2');
+  const toggle = document.getElementById('f-buy2-toggle');
+  const knob = document.getElementById('f-buy2-knob');
+  if (enabled) {
+    delete input.dataset.disabled; input.disabled = false; input.style.opacity='1';
+    toggle.style.background='var(--accent)'; knob.style.left='16px';
+  } else {
+    input.dataset.disabled='1'; input.disabled=true; input.style.opacity='.4';
+    toggle.style.background='var(--border2)'; knob.style.left='2px';
+  }
+  updateInvestedHint();
+  updateTargetPreview();
+}
+
 function updateTargetPreview() {
   let buyPrice, qty;
   if (inputMode === 'invested') {
@@ -1286,6 +1321,7 @@ function openAddModal() {
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('f-target-preview').textContent='';
   setCurrentPriceToggle(true);
+  setBuyPrice2Toggle(true);
   setInputMode('price');
   buildTypeGrid();
   document.getElementById('modal-overlay').classList.add('open');
@@ -1316,6 +1352,7 @@ function openEditModal(id) {
   document.getElementById('f-notes').value = inv.notes||'';
   document.getElementById('f-target-return').value = inv.targetReturn||'';
   setCurrentPriceToggle(!inv.currentPriceDisabled);
+  setBuyPrice2Toggle(!inv.buyPriceDisabled);
   setInputMode('price');
   document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
   document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
@@ -1334,13 +1371,19 @@ function selectType(t) {
 
 function saveAsset() {
   const name = document.getElementById('f-name').value.trim();
-  let buyPrice, quantity;
+  let buyPrice, quantity, buyPriceDisabled = false;
   if (inputMode === 'invested') {
-    buyPrice = parseFloat(document.getElementById('f-buy-2').value);
+    buyPriceDisabled = !!document.getElementById('f-buy-2').dataset.disabled;
     const invested = parseFloat(document.getElementById('f-invested').value);
-    if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
     if (isNaN(invested)||invested<=0) { alert('Dinero invertido inválido'); return; }
-    quantity = invested / buyPrice;
+    if (buyPriceDisabled) {
+      buyPrice = invested;
+      quantity = 1;
+    } else {
+      buyPrice = parseFloat(document.getElementById('f-buy-2').value);
+      if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
+      quantity = invested / buyPrice;
+    }
   } else {
     buyPrice = parseFloat(document.getElementById('f-buy').value);
     quantity = parseFloat(document.getElementById('f-qty').value);
@@ -1358,6 +1401,7 @@ function saveAsset() {
     ticker: document.getElementById('f-ticker').value.trim().toUpperCase(),
     buyPrice, currentPrice: currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||buyPrice) : currentPrice,
     currentPriceDisabled,
+    buyPriceDisabled,
     targetReturn,
     quantity,
     date: document.getElementById('f-date').value,
@@ -1556,7 +1600,7 @@ Object.assign(window, {
   selectType, closeModal, toggleClosedSection, showDetail, reopenInvestment,
   openDividendModal, saveDividend, deleteDividend, openSellModal, confirmSell,
   openAddTypeModal, saveCustomType, deleteCustomType, saveSetting, saveSavings,
-  exportData, importData, confirmReset, toggleCurrentPrice, setInputMode,
+  exportData, importData, confirmReset, toggleCurrentPrice, toggleBuyPrice2, setInputMode,
   renderPortfolio,
   connectFirebase: () => connectFirebase(false),
   forceSyncNow, copySyncCode, promptUseExistingCode, disconnectFirebase, toggleSyncHowto
