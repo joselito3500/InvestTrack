@@ -262,6 +262,53 @@ nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);paddin
   <div class="screen" id="screen-settings">
     <div class="top-bar"><h1>Ajustes</h1></div>
     <div class="screen-pad">
+      <div class="section-hdr"><h2>Sincronización en la nube</h2></div>
+      <div class="card">
+        <div id="sync-status-row" style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <div id="sync-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text2);flex-shrink:0"></div>
+          <div style="flex:1">
+            <div id="sync-status-text" style="font-weight:600;font-size:13px">No configurado</div>
+            <div id="sync-status-sub" style="font-size:11px;color:var(--text2);margin-top:1px">Tus datos solo viven en este navegador</div>
+          </div>
+        </div>
+        <div id="sync-setup-block">
+          <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
+            Conecta un proyecto Firebase gratuito para sincronizar tu cartera entre todos tus dispositivos. <span id="sync-howto-link" onclick="toggleSyncHowto()" style="color:var(--accent);font-weight:600;cursor:pointer">Ver cómo crear uno (5 min, gratis) →</span>
+          </div>
+          <div id="sync-howto" style="display:none;background:var(--bg4);border-radius:12px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.7;color:var(--text2)">
+            1. Ve a <b style="color:var(--text)">console.firebase.google.com</b> → "Agregar proyecto" (nombre cualquiera)<br>
+            2. En el menú izquierdo: <b style="color:var(--text)">Compilación → Firestore Database → Crear base de datos</b> (modo producción, cualquier región)<br>
+            3. En <b style="color:var(--text)">Reglas</b> de Firestore pega esto y publica:<br>
+            <code style="display:block;background:var(--bg);padding:8px;border-radius:8px;margin:6px 0;font-size:10px;color:var(--accent);white-space:pre-wrap">rules_version='2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /{doc=**} { allow read, write: if request.auth != null; }
+  }
+}</code>
+            4. Menú izquierdo: <b style="color:var(--text)">Compilación → Authentication → Comenzar → Anónimo</b> → activar<br>
+            5. Icono ⚙️ junto a "Resumen del proyecto" → <b style="color:var(--text)">Configuración del proyecto</b> → baja hasta "Tus apps" → icono <b style="color:var(--text)">&lt;/&gt;</b> (Web) → registra la app → copia el objeto <code style="color:var(--accent)">firebaseConfig</code><br>
+            6. Pega ese objeto completo abajo
+          </div>
+          <div class="form-group">
+            <label>Configuración Firebase (objeto JS)</label>
+            <textarea id="firebase-config-input" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}' style="height:90px;font-family:var(--mono);font-size:11px"></textarea>
+          </div>
+          <button class="btn-primary" onclick="connectFirebase()">Conectar y sincronizar</button>
+        </div>
+        <div id="sync-connected-block" style="display:none">
+          <div class="form-group">
+            <label>Código de cartera (compártelo entre tus dispositivos)</label>
+            <div style="display:flex;gap:8px">
+              <input type="text" id="sync-code-display" readonly style="font-family:var(--mono);font-weight:700;letter-spacing:1px">
+              <button onclick="copySyncCode()" style="background:var(--bg4);border:1px solid var(--border);border-radius:12px;color:var(--text);padding:0 16px;font-family:var(--font);font-size:13px;cursor:pointer;white-space:nowrap">Copiar</button>
+            </div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">En tu otro dispositivo, conecta el mismo Firebase y pulsa "Usar código existente" para introducir este código</div>
+          </div>
+          <button class="btn-secondary" onclick="promptUseExistingCode()">Usar código existente (otro dispositivo)</button>
+          <button class="btn-secondary" onclick="forceSyncNow()">🔄 Sincronizar ahora</button>
+          <button class="btn-danger" onclick="disconnectFirebase()">Desconectar sincronización</button>
+        </div>
+      </div>
       <div class="section-hdr"><h2>Tipos de inversión</h2></div>
       <div class="card">
         <div id="types-list"></div>
@@ -431,10 +478,230 @@ nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);paddin
   </div>
 </div>
 
-<script>
+<script type="module">
+const FB_URL = 'https://www.gstatic.com/firebasejs/12.15.0/';
+let fbModules = null;
+async function loadFirebaseSDK() {
+  if (fbModules) return fbModules;
+  const [appMod, authMod, fsMod] = await Promise.all([
+    import(FB_URL + 'firebase-app.js'),
+    import(FB_URL + 'firebase-auth.js'),
+    import(FB_URL + 'firebase-firestore.js')
+  ]);
+  fbModules = { ...appMod, ...authMod, ...fsMod };
+  return fbModules;
+}
 let investments = JSON.parse(localStorage.getItem('it_data') || '[]');
 let settings = JSON.parse(localStorage.getItem('it_settings') || '{"currency":"EUR","savings":0}');
 let customTypes = JSON.parse(localStorage.getItem('it_types') || '[]');
+
+// --- FIREBASE SYNC STATE ---
+let fbApp = null, fbAuth = null, fbDb = null, fbUser = null, fbUnsub = null;
+let syncCode = localStorage.getItem('it_sync_code') || null;
+let fbConfigStored = JSON.parse(localStorage.getItem('it_fb_config') || 'null');
+let isApplyingRemoteData = false;
+let writeDebounceTimer = null;
+
+function genSyncCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i=0;i<8;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code.slice(0,4) + '-' + code.slice(4);
+}
+
+function setSyncStatus(state, text, sub) {
+  const dot = document.getElementById('sync-status-dot');
+  const t = document.getElementById('sync-status-text');
+  const s = document.getElementById('sync-status-sub');
+  if (!dot) return;
+  const colors = {off:'var(--text2)', connecting:'var(--gold)', on:'var(--green)', error:'var(--red)'};
+  dot.style.background = colors[state] || 'var(--text2)';
+  dot.style.boxShadow = state==='on' ? '0 0 6px var(--green)' : 'none';
+  t.textContent = text;
+  s.textContent = sub;
+  document.getElementById('sync-setup-block').style.display = state==='on' ? 'none' : 'block';
+  document.getElementById('sync-connected-block').style.display = state==='on' ? 'block' : 'none';
+}
+
+async function connectFirebase(useExistingCode) {
+  const raw = document.getElementById('firebase-config-input').value.trim();
+  let config;
+  try {
+    config = JSON.parse(raw.replace(/(\w+):/g, '"$1":').replace(/'/g,'"'));
+  } catch {
+    try { config = eval('(' + raw + ')'); } catch { alert('No he podido leer la configuración. Asegúrate de pegar el objeto firebaseConfig completo.'); return; }
+  }
+  if (!config || !config.apiKey || !config.projectId) { alert('Configuración incompleta. Faltan campos como apiKey o projectId.'); return; }
+
+  setSyncStatus('connecting', 'Conectando...', 'Cargando SDK de Firebase');
+  let fb;
+  try {
+    fb = await loadFirebaseSDK();
+  } catch (e) {
+    console.error(e);
+    setSyncStatus('error', 'No se pudo cargar Firebase', 'Comprueba tu conexión a internet e inténtalo de nuevo');
+    return;
+  }
+
+  try {
+    fbApp = fb.initializeApp(config);
+    fbAuth = fb.getAuth(fbApp);
+    fbDb = fb.getFirestore(fbApp);
+    await fb.signInAnonymously(fbAuth);
+    fb.onAuthStateChanged(fbAuth, user => {
+      if (user) {
+        fbUser = user;
+        fbConfigStored = config;
+        localStorage.setItem('it_fb_config', JSON.stringify(config));
+        if (useExistingCode) {
+          const code = prompt('Introduce el código de cartera de tu otro dispositivo (ej: ABCD-1234):');
+          if (!code) { setSyncStatus('off','No configurado','Tus datos solo viven en este navegador'); return; }
+          syncCode = code.trim().toUpperCase();
+        } else if (!syncCode) {
+          syncCode = genSyncCode();
+        }
+        localStorage.setItem('it_sync_code', syncCode);
+        document.getElementById('sync-code-display').value = syncCode;
+        startSyncListener(useExistingCode);
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    setSyncStatus('error', 'Error de conexión', e.message || 'Revisa la configuración');
+  }
+}
+
+function startSyncListener(pullFirst) {
+  if (fbUnsub) fbUnsub();
+  const ref = fbModules.doc(fbDb, 'investtrack_portfolios', syncCode);
+
+  if (pullFirst) {
+    fbModules.getDoc(ref).then(snap => {
+      if (snap.exists()) {
+        applyRemoteData(snap.data());
+      } else {
+        pushToFirestore();
+      }
+      attachListener(ref);
+    }).catch(e => { console.error(e); setSyncStatus('error','Error al sincronizar', e.message); });
+  } else {
+    pushToFirestore().then(() => attachListener(ref));
+  }
+}
+
+function attachListener(ref) {
+  fbUnsub = fbModules.onSnapshot(ref, snap => {
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.updatedAt && data.updatedAt !== lastLocalWriteTs) {
+        applyRemoteData(data);
+      }
+    }
+    setSyncStatus('on', 'Sincronizado', 'Código: ' + syncCode);
+  }, err => {
+    console.error(err);
+    setSyncStatus('error', 'Error de sincronización', err.message);
+  });
+}
+
+let lastLocalWriteTs = 0;
+
+function applyRemoteData(data) {
+  isApplyingRemoteData = true;
+  if (data.investments) investments = data.investments;
+  if (data.settings) settings = data.settings;
+  if (data.customTypes) customTypes = data.customTypes;
+  localStorage.setItem('it_data', JSON.stringify(investments));
+  localStorage.setItem('it_settings', JSON.stringify(settings));
+  localStorage.setItem('it_types', JSON.stringify(customTypes));
+  isApplyingRemoteData = false;
+  if (currentScreen === 'dashboard') renderDashboard();
+  if (currentScreen === 'portfolio') renderPortfolio();
+  if (currentScreen === 'stats') renderStats();
+}
+
+function pushToFirestore() {
+  if (!fbDb || !syncCode || !fbModules) return Promise.resolve();
+  const ts = Date.now();
+  lastLocalWriteTs = ts;
+  return fbModules.setDoc(fbModules.doc(fbDb, 'investtrack_portfolios', syncCode), {
+    investments, settings, customTypes, updatedAt: ts
+  }).catch(e => { console.error('Sync write failed', e); setSyncStatus('error','Error al guardar en la nube', e.message); });
+}
+
+function scheduleSyncPush() {
+  if (!fbDb || isApplyingRemoteData) return;
+  clearTimeout(writeDebounceTimer);
+  writeDebounceTimer = setTimeout(pushToFirestore, 600);
+}
+
+function forceSyncNow() {
+  if (!fbDb) return;
+  setSyncStatus('connecting','Sincronizando...','');
+  pushToFirestore().then(() => setSyncStatus('on','Sincronizado','Código: '+syncCode));
+}
+
+function copySyncCode() {
+  const input = document.getElementById('sync-code-display');
+  input.select();
+  navigator.clipboard?.writeText(input.value).then(()=>{
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    setTimeout(()=>btn.textContent=orig, 1500);
+  }).catch(()=>{});
+}
+
+function promptUseExistingCode() {
+  if (!confirm('Esto sobrescribirá los datos de este dispositivo con los del código que introduzcas. ¿Continuar?')) return;
+  connectFirebaseWithStoredConfig(true);
+}
+
+function connectFirebaseWithStoredConfig(useExistingCode) {
+  document.getElementById('firebase-config-input').value = JSON.stringify(fbConfigStored);
+  connectFirebase(useExistingCode);
+}
+
+function disconnectFirebase() {
+  if (!confirm('¿Desconectar la sincronización? Tus datos seguirán guardados en este dispositivo, pero dejarán de sincronizarse.')) return;
+  if (fbUnsub) fbUnsub();
+  fbApp = null; fbAuth = null; fbDb = null; fbUser = null;
+  localStorage.removeItem('it_fb_config');
+  localStorage.removeItem('it_sync_code');
+  syncCode = null; fbConfigStored = null;
+  setSyncStatus('off', 'No configurado', 'Tus datos solo viven en este navegador');
+}
+
+function toggleSyncHowto() {
+  const el = document.getElementById('sync-howto');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function initSyncOnLoad() {
+  if (fbConfigStored && syncCode) {
+    setSyncStatus('connecting', 'Reconectando...', '');
+    try {
+      const fb = await loadFirebaseSDK();
+      fbApp = fb.initializeApp(fbConfigStored);
+      fbAuth = fb.getAuth(fbApp);
+      fbDb = fb.getFirestore(fbApp);
+      await fb.signInAnonymously(fbAuth);
+      fb.onAuthStateChanged(fbAuth, user => {
+        if (user) {
+          fbUser = user;
+          document.getElementById('sync-code-display').value = syncCode;
+          startSyncListener(true);
+        }
+      });
+    } catch(e) {
+      console.error(e);
+      setSyncStatus('error','No se pudo reconectar', 'Revisa tu conexión a internet');
+    }
+  } else {
+    setSyncStatus('off', 'No configurado', 'Tus datos solo viven en este navegador');
+  }
+}
+
 let currentFilter = 'all';
 let editingId = null;
 let selectedType = null;
@@ -568,6 +835,7 @@ function saveSavings() {
   const val = parseFloat(document.getElementById('savings-input').value) || 0;
   settings.savings = val;
   localStorage.setItem('it_settings', JSON.stringify(settings));
+  scheduleSyncPush();
   const c = getCurrency();
   const totalValue = activeInvestments().reduce((s,i) => s + getAssetValue(i), 0);
   const totalNet = val + totalValue;
@@ -1188,6 +1456,7 @@ function saveCustomType() {
   const id = 'custom_' + Date.now();
   customTypes.push({id, label:name, emoji});
   localStorage.setItem('it_types', JSON.stringify(customTypes));
+  scheduleSyncPush();
   closeModalById('type-modal-overlay');
   renderSettings();
 }
@@ -1200,6 +1469,7 @@ function deleteCustomType(id) {
   }
   customTypes = customTypes.filter(t=>t.id!==id);
   localStorage.setItem('it_types', JSON.stringify(customTypes));
+  scheduleSyncPush();
   renderSettings();
 }
 
@@ -1208,11 +1478,15 @@ function setFilter(f) {
   renderPortfolio();
 }
 
-function saveData() { localStorage.setItem('it_data', JSON.stringify(investments)); }
+function saveData() {
+  localStorage.setItem('it_data', JSON.stringify(investments));
+  scheduleSyncPush();
+}
 
 function saveSetting(key, val) {
   settings[key]=val;
   localStorage.setItem('it_settings', JSON.stringify(settings));
+  scheduleSyncPush();
   renderDashboard();
 }
 
@@ -1230,7 +1504,7 @@ function importData(e) {
   reader.onload=ev=>{
     try {
       const data=JSON.parse(ev.target.result);
-      if(data.investments){investments=data.investments; if(data.settings)settings=data.settings; if(data.customTypes)customTypes=data.customTypes; saveData(); localStorage.setItem('it_settings',JSON.stringify(settings)); localStorage.setItem('it_types',JSON.stringify(customTypes)); alert('Importado: '+investments.length+' inversiones'); renderDashboard(); renderSettings();}
+      if(data.investments){investments=data.investments; if(data.settings)settings=data.settings; if(data.customTypes)customTypes=data.customTypes; localStorage.setItem('it_data',JSON.stringify(investments)); localStorage.setItem('it_settings',JSON.stringify(settings)); localStorage.setItem('it_types',JSON.stringify(customTypes)); scheduleSyncPush(); alert('Importado: '+investments.length+' inversiones'); renderDashboard(); renderSettings();}
     } catch{alert('Error al leer el archivo');}
   };
   reader.readAsText(file);
@@ -1240,18 +1514,26 @@ function confirmReset() {
   if(!confirm('¿Borrar todos los datos? Esta acción no se puede deshacer.')) return;
   investments=[]; customTypes=[];
   settings={currency:settings.currency||'EUR',savings:0};
-  saveData(); localStorage.setItem('it_types','[]'); localStorage.setItem('it_settings',JSON.stringify(settings));
+  localStorage.setItem('it_data','[]'); localStorage.setItem('it_types','[]'); localStorage.setItem('it_settings',JSON.stringify(settings));
+  scheduleSyncPush();
   renderDashboard(); renderPortfolio();
 }
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    // Registramos el sw apuntando a la subcarpeta
-    navigator.serviceWorker.register('/InvestTrack/sw.js', { scope: '/InvestTrack/' })
-      .then(reg => console.log('Service Worker registrado con éxito', reg))
-      .catch(err => console.error('Error al registrar el Service Worker', err));
-  });
-}
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// Expose functions used by inline onclick/onchange handlers to global scope (required for type="module")
+Object.assign(window, {
+  showScreen, setFilter, openAddModal, openEditModal, saveAsset, deleteAsset,
+  selectType, closeModal, toggleClosedSection, showDetail, reopenInvestment,
+  openDividendModal, saveDividend, deleteDividend, openSellModal, confirmSell,
+  openAddTypeModal, saveCustomType, deleteCustomType, saveSetting, saveSavings,
+  exportData, importData, confirmReset, toggleCurrentPrice, setInputMode,
+  renderPortfolio,
+  connectFirebase: () => connectFirebase(false),
+  forceSyncNow, copySyncCode, promptUseExistingCode, disconnectFirebase, toggleSyncHowto
+});
+
+initSyncOnLoad();
 renderDashboard();
 showScreen('dashboard');
 </script>
