@@ -214,7 +214,7 @@ nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);paddin
       </div>
       <div class="section-hdr"><h2>Resumen por tipo</h2></div>
       <div id="type-summary"></div>
-      <div class="section-hdr"><h2>Inversiones cerradas</h2><span id="closed-count-dash">0</span></div>
+      <div class="section-hdr"><h2>Ganancias / pérdidas cerradas</h2><span id="closed-count-dash">0</span></div>
       <div id="closed-summary"></div>
     </div>
   </div>
@@ -818,6 +818,10 @@ function getClosedPnL(inv) {
   // On a closed position, all dividends (reinvested or not) are realized cash, already separate from sale proceeds
   return sellTotal - cost + getTotalDividends(inv);
 }
+function getClosedSalePnL(inv) {
+  const sellTotal = (parseFloat(inv.sellPrice)||0) * (parseFloat(inv.quantity)||0) - (parseFloat(inv.sellFee)||0);
+  return sellTotal - getAssetCost(inv);
+}
 
 function activeInvestments() { return investments.filter(i => !i.closed); }
 function closedInvestments() { return investments.filter(i => i.closed); }
@@ -872,17 +876,62 @@ function renderDashboard() {
   renderDonut(active, totalValue);
   renderTypeSummary(c, active);
 
-  // Closed summary on dashboard
+  // Closed P&L summary on dashboard
   const closedEl = document.getElementById('closed-summary');
   document.getElementById('closed-count-dash').textContent = closed.length;
   if (!closed.length) {
-    closedEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Ninguna inversión cerrada aún</div>';
+    closedEl.innerHTML = '<div class="card" style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Ninguna inversión cerrada todavía. Cuando vendas un activo, su resultado aparecerá aquí.</div>';
   } else {
     const totalClosedPnL = closed.reduce((s,i) => s + getClosedPnL(i), 0);
-    closedEl.innerHTML = `<div class="card" style="display:flex;justify-content:space-between;align-items:center">
-      <div><div style="font-size:13px;color:var(--text2)">Resultado realizado</div><div style="font-size:11px;color:var(--text2);margin-top:2px">${closed.length} posición${closed.length>1?'es':''} cerrada${closed.length>1?'s':''}</div></div>
-      <div style="font-size:20px;font-weight:700;color:${totalClosedPnL>=0?'var(--green)':'var(--red)'}">${totalClosedPnL>=0?'+':'-'}${c}${fmt(Math.abs(totalClosedPnL))}</div>
-    </div>`;
+    const totalSalePnL = closed.reduce((s,i) => s + getClosedSalePnL(i), 0);
+    const totalClosedDivs = closed.reduce((s,i) => s + getTotalDividends(i), 0);
+    const winners = closed.filter(i => getClosedPnL(i) > 0);
+    const losers = closed.filter(i => getClosedPnL(i) < 0);
+    const pnlColor = totalClosedPnL >= 0 ? 'var(--green)' : 'var(--red)';
+    const pnlBg = totalClosedPnL >= 0 ? 'var(--green2)' : 'var(--red2)';
+
+    closedEl.innerHTML = `
+      <div class="card" style="background:linear-gradient(135deg,var(--bg3) 0%,var(--bg4) 100%);margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Resultado total realizado</div>
+            <div style="font-size:28px;font-weight:700;color:${pnlColor};letter-spacing:-0.5px">${totalClosedPnL>=0?'+':'-'}${c}${fmt(Math.abs(totalClosedPnL))}</div>
+          </div>
+          <div style="background:${pnlBg};color:${pnlColor};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;white-space:nowrap">${closed.length} cerrada${closed.length>1?'s':''}</div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--text2);margin-bottom:3px">Plusvalía de venta</div>
+            <div style="font-size:14px;font-weight:700;color:${totalSalePnL>=0?'var(--green)':'var(--red)'}">${totalSalePnL>=0?'+':'-'}${c}${fmt(Math.abs(totalSalePnL))}</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--text2);margin-bottom:3px">Dividendos cobrados</div>
+            <div style="font-size:14px;font-weight:700;color:var(--gold)">${c}${fmt(totalClosedDivs)}</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-size:10px;color:var(--text2);margin-bottom:3px">Ganadoras / Perdedoras</div>
+            <div style="font-size:14px;font-weight:700"><span style="color:var(--green)">${winners.length}</span> / <span style="color:var(--red)">${losers.length}</span></div>
+          </div>
+        </div>
+      </div>
+      ${[...closed].sort((a,b)=>(b.sellDate||'').localeCompare(a.sellDate||'')).slice(0,3).map(inv => {
+        const pl = getClosedPnL(inv);
+        const ti = getTypeInfo(inv.type), color = getTypeColor(inv.type);
+        return `<div class="asset-item" style="opacity:.85" onclick="showDetail('${inv.id}')">
+          <div class="asset-main">
+            <div class="asset-icon" style="background:${color}22;color:${color}">${ti.emoji}</div>
+            <div class="asset-info">
+              <div class="asset-name">${inv.name} <span class="closed-badge">Cerrada</span></div>
+              <div class="asset-sub">${inv.sellDate?new Date(inv.sellDate).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}):''}</div>
+            </div>
+            <div class="asset-right">
+              <div class="asset-pnl ${pl>0?'pos':pl<0?'neg':'neu'}" style="font-size:14px;font-weight:700">${pl>=0?'+':'-'}${c}${fmt(Math.abs(pl))}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+      ${closed.length > 3 ? `<div style="text-align:center;margin-top:8px"><span onclick="showScreen('portfolio');setTimeout(()=>{toggleClosedSection();},50)" style="color:var(--accent);font-size:12px;font-weight:600;cursor:pointer">Ver las ${closed.length} inversiones cerradas →</span></div>` : ''}
+    `;
   }
 }
 
