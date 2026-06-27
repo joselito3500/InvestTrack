@@ -428,6 +428,11 @@ service cloud.firestore {
         </label>
         <input type="number" id="f-current" placeholder="0.00" step="0.01" min="0">
         <div id="f-current-disabled-note" style="display:none;font-size:11px;color:var(--text2);margin-top:4px">⏸ Precio congelado — no se calcula P&L</div>
+        <div class="form-group" id="row-invested-current-value" style="display:none;margin-top:10px;margin-bottom:0">
+          <label>Valoración actual del dinero invertido (opcional)</label>
+          <input type="number" id="f-invested-current-value" placeholder="Déjalo en blanco si no ha cambiado" step="0.01" min="0">
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">Si esta inversión ha cambiado de valor (ej. te han informado de una nueva valoración), indícalo aquí. Si lo dejas vacío, se asume que sigue valiendo lo mismo que invertiste.</div>
+        </div>
       </div>
       <div class="form-group"><label>Fecha de compra</label><input type="date" id="f-date"></div>
     </div>
@@ -455,6 +460,15 @@ service cloud.firestore {
     <div id="div-modal-asset-info" style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:16px;font-weight:600"></div>
     <div class="form-group"><label>Importe recibido *</label><input type="number" id="div-amount" placeholder="0.00" step="0.01" min="0"></div>
     <div class="form-group"><label>Fecha de cobro</label><input type="date" id="div-date"></div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>¿Se reinvierte en el activo?</span>
+        <span id="div-reinvest-toggle" onclick="toggleDivReinvest()" style="width:32px;height:18px;border-radius:9px;background:var(--border2);display:inline-flex;align-items:center;cursor:pointer;transition:background .2s;flex-shrink:0;position:relative">
+          <span id="div-reinvest-knob" style="width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;left:2px;transition:left .2s"></span>
+        </span>
+      </label>
+      <div id="div-reinvest-note" style="font-size:11px;color:var(--text2);margin-top:4px">No se reinvierte — se contabiliza como ganancia ya cobrada, sin aumentar el valor del activo</div>
+    </div>
     <div class="form-group"><label>Notas</label><input type="text" id="div-notes" placeholder="Ej: Q1 2025, dividendo especial..."></div>
     <button class="btn-primary" onclick="saveDividend()">Registrar dividendo</button>
     <div style="height:8px"></div>
@@ -785,16 +799,23 @@ function fmtPct(n) {
 }
 
 function getAssetValue(inv) {
-  if (inv.currentPriceDisabled) return (parseFloat(inv.buyPrice)||0) * (parseFloat(inv.quantity)||0);
-  return (parseFloat(inv.currentPrice)||0) * (parseFloat(inv.quantity)||0);
+  // When price tracking is disabled, fall back to cost basis unless a manual
+  // currentPrice was explicitly provided (e.g. via the optional valuation field).
+  const base = inv.currentPriceDisabled
+    ? (parseFloat(inv.currentPrice) || parseFloat(inv.buyPrice) || 0) * (parseFloat(inv.quantity)||0)
+    : (parseFloat(inv.currentPrice)||0) * (parseFloat(inv.quantity)||0);
+  return base + getReinvestedDividends(inv);
 }
 function getAssetCost(inv) { return ((parseFloat(inv.buyPrice)||0) * (parseFloat(inv.quantity)||0)) + (parseFloat(inv.fee)||0); }
-function getAssetPnL(inv) { return getAssetValue(inv) - getAssetCost(inv); }
-function getAssetPnLPct(inv) { const c=getAssetCost(inv); return c ? (getAssetPnL(inv)/c)*100 : 0; }
+function getReinvestedDividends(inv) { return (inv.dividends||[]).filter(d=>d.reinvested).reduce((s,d) => s + (parseFloat(d.amount)||0), 0); }
+function getNonReinvestedDividends(inv) { return (inv.dividends||[]).filter(d=>!d.reinvested).reduce((s,d) => s + (parseFloat(d.amount)||0), 0); }
 function getTotalDividends(inv) { return (inv.dividends||[]).reduce((s,d) => s + (parseFloat(d.amount)||0), 0); }
+function getAssetPnL(inv) { return getAssetValue(inv) + getNonReinvestedDividends(inv) - getAssetCost(inv); }
+function getAssetPnLPct(inv) { const c=getAssetCost(inv); return c ? (getAssetPnL(inv)/c)*100 : 0; }
 function getClosedPnL(inv) {
   const sellTotal = (parseFloat(inv.sellPrice)||0) * (parseFloat(inv.quantity)||0) - (parseFloat(inv.sellFee)||0);
   const cost = getAssetCost(inv);
+  // On a closed position, all dividends (reinvested or not) are realized cash, already separate from sale proceeds
   return sellTotal - cost + getTotalDividends(inv);
 }
 
@@ -969,10 +990,12 @@ function buildAssetItem(inv, c) {
   const ti=getTypeInfo(inv.type), color=getTypeColor(inv.type);
   const divTotal = getTotalDividends(inv);
   const frozen = inv.currentPriceDisabled;
-  const pnlDisplay = frozen
+  const hasManualValuation = frozen && Math.abs(val - getAssetCost(inv) + getReinvestedDividends(inv)) > 0.005;
+  const showNoTracking = frozen && !hasManualValuation;
+  const pnlDisplay = showNoTracking
     ? `<span style="color:var(--text2);font-size:12px">sin seguimiento</span>`
     : `<span class="asset-pnl ${pnl>0?'pos':pnl<0?'neg':'neu'}">${pnl>=0?'+':'-'}${c}${fmt(Math.abs(pnl))} (${fmtPct(pnlPct)})</span>`;
-  const targetBadge = inv.targetReturn && !frozen
+  const targetBadge = inv.targetReturn && !showNoTracking
     ? `<span style="font-size:10px;color:${pnlPct>=inv.targetReturn?'var(--green)':'var(--blue)'}">🎯${Math.min(Math.round(pnlPct/inv.targetReturn*100),999)}%</span>` : '';
   return `<div class="asset-item">
     <div class="asset-main" onclick="showDetail('${inv.id}')">
@@ -1051,19 +1074,25 @@ function showDetail(id) {
     const val=getAssetValue(inv), pnl=getAssetPnL(inv), pnlPct=getAssetPnLPct(inv);
     const pnlColor = pnl>0?'var(--green)':pnl<0?'var(--red)':'var(--text2)';
     const priceDisabled = inv.currentPriceDisabled;
+    const hasManualValuation = priceDisabled && Math.abs(val - getAssetCost(inv) + getReinvestedDividends(inv)) > 0.005;
+    const showNoTracking = priceDisabled && !hasManualValuation;
     html += `<div class="detail-hero">
       <div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Valor actual${priceDisabled?' <span style="background:var(--bg4);color:var(--text2);font-size:9px;padding:2px 7px;border-radius:6px;vertical-align:middle">⏸ CONGELADO</span>':''}</div>
       <div style="font-size:36px;font-weight:700">${c}${fmt(val)}</div>
-      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 16px;border-radius:20px;background:${priceDisabled?'var(--bg4)':pnl>=0?'var(--green2)':'var(--red2)'};color:${priceDisabled?'var(--text2)':pnlColor};font-weight:700;font-size:14px">${priceDisabled?'Sin seguimiento de P&L':(pnl>=0?'▲':'▼')+' '+c+fmt(Math.abs(pnl))+' · '+fmtPct(pnlPct)}</div>
+      <div style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:6px 16px;border-radius:20px;background:${showNoTracking?'var(--bg4)':pnl>=0?'var(--green2)':'var(--red2)'};color:${showNoTracking?'var(--text2)':pnlColor};font-weight:700;font-size:14px">${showNoTracking?'Sin seguimiento de P&L':(pnl>=0?'▲':'▼')+' '+c+fmt(Math.abs(pnl))+' · '+fmtPct(pnlPct)}</div>
     </div>
     <div class="detail-stats">
       <div class="detail-stat"><div class="dl">P. compra</div><div class="dv">${c}${fmt(parseFloat(inv.buyPrice))}</div></div>
       <div class="detail-stat"><div class="dl">P. actual</div><div class="dv" style="${priceDisabled?'color:var(--text2)':''}">${c}${fmt(parseFloat(inv.currentPrice))}</div></div>
       <div class="detail-stat"><div class="dl">Cantidad</div><div class="dv">${inv.quantity}</div></div>
-      <div class="detail-stat"><div class="dl">Invertido</div><div class="dv">${c}${fmt(getAssetCost(inv))}</div></div>
+      <div class="detail-stat"><div class="dl">Inversión inicial</div><div class="dv">${c}${fmt(getAssetCost(inv))}</div></div>
       <div class="detail-stat"><div class="dl">Comisión</div><div class="dv">${c}${fmt(parseFloat(inv.fee)||0)}</div></div>
-      <div class="detail-stat"><div class="dl">Dividendos</div><div class="dv" style="color:var(--gold)">${c}${fmt(getTotalDividends(inv))}</div></div>
+      <div class="detail-stat"><div class="dl">Dividendos cobrados</div><div class="dv" style="color:var(--gold)">${c}${fmt(getNonReinvestedDividends(inv))}</div></div>
     </div>
+    ${getReinvestedDividends(inv) > 0 ? `<div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">♻️</span>
+      <div><div style="font-size:11px;color:var(--text2)">Dividendos reinvertidos (ya incluidos en el valor actual)</div><div style="font-weight:700;color:var(--green)">${c}${fmt(getReinvestedDividends(inv))}</div></div>
+    </div>` : ''}
     ${inv.targetReturn ? `<div class="card" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
       <div>
         <div style="font-size:11px;color:var(--text2);margin-bottom:4px">🎯 Retorno esperado</div>
@@ -1092,7 +1121,7 @@ function showDetail(id) {
     html += `<div class="card" style="margin-bottom:12px">
       <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--gold)">💰 Historial de dividendos — ${c}${fmt(getTotalDividends(inv))} total</div>
       ${divs.map((d,i) => `<div class="div-entry">
-        <div><div class="div-date">${d.date?new Date(d.date).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}):'-'}</div>${d.notes?`<div style="font-size:11px;color:var(--text2)">${d.notes}</div>`:''}</div>
+        <div><div class="div-date">${d.date?new Date(d.date).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'}):'-'}${d.reinvested?' <span style="background:var(--green2);color:var(--green);font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px">♻ Reinvertido</span>':''}</div>${d.notes?`<div style="font-size:11px;color:var(--text2)">${d.notes}</div>`:''}</div>
         <div style="display:flex;align-items:center;gap:8px"><span class="div-amount">${c}${fmt(parseFloat(d.amount))}</span><button onclick="deleteDividend('${inv.id}',${i})" style="background:var(--red2);border:none;border-radius:6px;color:var(--red);font-size:11px;padding:3px 7px;cursor:pointer;font-family:var(--font)">✕</button></div>
       </div>`).join('')}
     </div>`;
@@ -1214,7 +1243,14 @@ function setInputMode(mode) {
     if (buy) document.getElementById('f-buy-2').value = buy;
     updateInvestedHint();
   }
+  updateInvestedCurrentValueVisibility();
   updateTargetPreview();
+}
+
+function updateInvestedCurrentValueVisibility() {
+  const block = document.getElementById('row-invested-current-value');
+  const currentDisabled = !!document.getElementById('f-current').dataset.disabled;
+  block.style.display = (inputMode === 'invested' && currentDisabled) ? 'block' : 'none';
 }
 
 function updateInvestedHint() {
@@ -1250,6 +1286,7 @@ function toggleCurrentPrice() {
     toggle.style.background='var(--accent)'; knob.style.left='16px';
     note.style.display='none';
   }
+  updateInvestedCurrentValueVisibility();
 }
 
 function setCurrentPriceToggle(enabled) {
@@ -1266,6 +1303,7 @@ function setCurrentPriceToggle(enabled) {
     toggle.style.background='var(--border2)'; knob.style.left='2px';
     note.style.display='block';
   }
+  updateInvestedCurrentValueVisibility();
 }
 
 function toggleBuyPrice2() {
@@ -1317,7 +1355,7 @@ function openAddModal() {
   document.getElementById('modal-title').textContent = 'Nueva inversión';
   document.getElementById('btn-delete').style.display = 'none';
   ['f-name','f-ticker','f-broker','f-notes'].forEach(id=>document.getElementById(id).value='');
-  ['f-buy','f-buy-2','f-current','f-qty','f-invested','f-fee','f-target-return'].forEach(id=>document.getElementById(id).value='');
+  ['f-buy','f-buy-2','f-current','f-qty','f-invested','f-invested-current-value','f-fee','f-target-return'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('f-target-preview').textContent='';
   setCurrentPriceToggle(true);
@@ -1346,6 +1384,8 @@ function openEditModal(id) {
   document.getElementById('f-current').value = inv.currentPrice||'';
   document.getElementById('f-qty').value = inv.quantity||'';
   document.getElementById('f-invested').value = inv.buyPrice && inv.quantity ? (parseFloat(inv.buyPrice)*parseFloat(inv.quantity)).toFixed(2) : '';
+  document.getElementById('f-invested-current-value').value = (inv.currentPriceDisabled && inv.buyPriceDisabled && parseFloat(inv.currentPrice) !== parseFloat(inv.buyPrice))
+    ? (parseFloat(inv.currentPrice)*parseFloat(inv.quantity)).toFixed(2) : '';
   document.getElementById('f-date').value = inv.date||'';
   document.getElementById('f-fee').value = inv.fee||'';
   document.getElementById('f-broker').value = inv.broker||'';
@@ -1353,7 +1393,7 @@ function openEditModal(id) {
   document.getElementById('f-target-return').value = inv.targetReturn||'';
   setCurrentPriceToggle(!inv.currentPriceDisabled);
   setBuyPrice2Toggle(!inv.buyPriceDisabled);
-  setInputMode('price');
+  setInputMode(inv.buyPriceDisabled ? 'invested' : 'price');
   document.getElementById('f-buy').addEventListener('input', updateTargetPreview);
   document.getElementById('f-qty').addEventListener('input', updateTargetPreview);
   document.getElementById('f-buy-2').addEventListener('input', ()=>{updateInvestedHint();updateTargetPreview();});
@@ -1394,12 +1434,20 @@ function saveAsset() {
   if (isNaN(buyPrice)||buyPrice<0) { alert('Precio de compra inválido'); return; }
   if (!currentPriceDisabled && (isNaN(currentPrice)||currentPrice<0)) { alert('Precio actual inválido'); return; }
   if (isNaN(quantity)||quantity<=0) { alert('Cantidad inválida'); return; }
+  // Optional manual valuation when in invested mode with the current price frozen
+  let resolvedCurrentPrice = currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||buyPrice) : currentPrice;
+  if (inputMode === 'invested' && currentPriceDisabled) {
+    const manualValue = parseFloat(document.getElementById('f-invested-current-value').value);
+    if (!isNaN(manualValue) && manualValue >= 0) {
+      resolvedCurrentPrice = manualValue / quantity;
+    }
+  }
   const targetReturn = parseFloat(document.getElementById('f-target-return').value)||null;
   const inv = {
     id: editingId||Date.now().toString(),
     type: selectedType||'other', name,
     ticker: document.getElementById('f-ticker').value.trim().toUpperCase(),
-    buyPrice, currentPrice: currentPriceDisabled ? (parseFloat(document.getElementById('f-current').value)||buyPrice) : currentPrice,
+    buyPrice, currentPrice: resolvedCurrentPrice,
     currentPriceDisabled,
     buyPriceDisabled,
     targetReturn,
@@ -1427,6 +1475,26 @@ function deleteAsset() {
 }
 
 // --- DIVIDENDS ---
+let divReinvestState = false;
+
+function toggleDivReinvest() {
+  divReinvestState = !divReinvestState;
+  applyDivReinvestUI();
+}
+
+function applyDivReinvestUI() {
+  const toggle = document.getElementById('div-reinvest-toggle');
+  const knob = document.getElementById('div-reinvest-knob');
+  const note = document.getElementById('div-reinvest-note');
+  if (divReinvestState) {
+    toggle.style.background='var(--accent)'; knob.style.left='16px';
+    note.textContent = 'Se reinvierte — el importe se suma al valor actual del activo (la inversión inicial no cambia)';
+  } else {
+    toggle.style.background='var(--border2)'; knob.style.left='2px';
+    note.textContent = 'No se reinvierte — se contabiliza como ganancia ya cobrada, sin aumentar el valor del activo';
+  }
+}
+
 function openDividendModal(id) {
   dividendTargetId = id;
   const inv = investments.find(i=>i.id===id);
@@ -1434,6 +1502,8 @@ function openDividendModal(id) {
   document.getElementById('div-amount').value = '';
   document.getElementById('div-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('div-notes').value = '';
+  divReinvestState = false;
+  applyDivReinvestUI();
   document.getElementById('div-modal-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('div-amount').focus(),300);
 }
@@ -1444,7 +1514,7 @@ function saveDividend() {
   const inv = investments.find(i=>i.id===dividendTargetId);
   if (!inv) return;
   if (!inv.dividends) inv.dividends=[];
-  inv.dividends.push({amount, date:document.getElementById('div-date').value, notes:document.getElementById('div-notes').value.trim()});
+  inv.dividends.push({amount, date:document.getElementById('div-date').value, notes:document.getElementById('div-notes').value.trim(), reinvested: divReinvestState});
   saveData();
   closeModalById('div-modal-overlay');
   if (currentScreen==='detail') showDetail(dividendTargetId);
@@ -1599,6 +1669,7 @@ Object.assign(window, {
   showScreen, setFilter, openAddModal, openEditModal, saveAsset, deleteAsset,
   selectType, closeModal, toggleClosedSection, showDetail, reopenInvestment,
   openDividendModal, saveDividend, deleteDividend, openSellModal, confirmSell,
+  toggleDivReinvest,
   openAddTypeModal, saveCustomType, deleteCustomType, saveSetting, saveSavings,
   exportData, importData, confirmReset, toggleCurrentPrice, toggleBuyPrice2, setInputMode,
   renderPortfolio,
