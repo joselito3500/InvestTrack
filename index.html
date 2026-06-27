@@ -1659,8 +1659,31 @@ function confirmReset() {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/InvestTrack/sw.js', { scope: '/InvestTrack/' })
-      .then(reg => console.log('Service Worker registrado con éxito', reg))
+      .then(reg => {
+        console.log('Service Worker registrado con éxito', reg);
+        // If there's already a waiting worker (e.g. update downloaded on a
+        // previous visit), activate it now.
+        if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+        // Watch for new updates found while the app is open.
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              newWorker.postMessage('SKIP_WAITING');
+            }
+          });
+        });
+      })
       .catch(err => console.error('Error al registrar el Service Worker', err));
+
+    // Reload once the new SW takes control, so the fresh version is shown.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
   });
 }
 
